@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Activity, ArrowRight, BedDouble, Bell, CalendarDays, Check, CheckCircle2, CreditCard,
   ChevronDown, ChevronRight, Clock3, FileText, HeartPulse, Hospital, LayoutDashboard,
@@ -7,9 +7,12 @@ import {
 } from 'lucide-react'
 import './App.css'
 import './PatientDashboard.css'
+import './AuthLanding.css'
 import { FacilitiesScreen, PharmacyScreen, ReferralScreen } from './ServicePages.jsx'
 
-const KEY = 'sipuskes-demo-v1'
+const KEY = 'sipuskes-demo-v2'
+const LEGACY_KEY = 'sipuskes-demo-v1'
+const GENDERS = ['Perempuan', 'Laki-laki']
 const clinics = [
   ['Poli Umum', Stethoscope, 'Pemeriksaan umum'],
   ['Poli Lansia & Disabilitas', HeartPulse, 'Layanan prioritas'],
@@ -40,17 +43,76 @@ const seed = {
   visits: [{ date: '12 Okt 2026', clinic: 'Poli Umum', diagnosis: 'ISPA ringan', doctor: 'dr. Aditya Pratama' }, { date: '04 Agu 2026', clinic: 'Poli Umum', diagnosis: 'Pemeriksaan rutin', doctor: 'dr. Aditya Pratama' }, { date: '19 Mei 2026', clinic: 'Poli Gizi', diagnosis: 'Konsultasi gizi', doctor: 'Ns. Maya Sari' }],
   screening: { complaint: 'Batuk dan pilek sejak kemarin', history: 'Tidak ada alergi yang diketahui', submitted: true },
 }
+const emptyProfile = {
+  name: '', phone: '', address: '', birthDate: '', gender: '', blood: '', emergency: '',
+  economy: 'subsidi', memberId: '', uniqueKey: '', pinHash: '',
+}
+const normalizeAccount = (account = {}) => {
+  const profile = { ...emptyProfile, ...account.profile }
+  const memberId = String(profile.memberId || account.id || '')
+  return {
+    id: String(account.id || memberId),
+    profile: { ...profile, memberId },
+    ticket: account.ticket ? { ...account.ticket, memberId: account.ticket.memberId || memberId } : null,
+    appointments: (Array.isArray(account.appointments) ? account.appointments : []).map((item) => ({ ...item, memberId: item.memberId || memberId })),
+    virtualConsultations: (Array.isArray(account.virtualConsultations) ? account.virtualConsultations : []).map((item) => ({ ...item, accountId: item.accountId || String(account.id || memberId), memberId: item.memberId || memberId })),
+    visits: (Array.isArray(account.visits) ? account.visits : []).map((item) => ({ ...item, memberId: item.memberId || memberId })),
+    screening: { ...(account.screening || { complaint: '', history: '', submitted: false }), memberId },
+  }
+}
+const makeDemoAccount = () => normalizeAccount({
+  id: seed.profile.memberId,
+  profile: seed.profile,
+  ticket: seed.ticket,
+  appointments: seed.appointments,
+  virtualConsultations: seed.virtualConsultations,
+  visits: seed.visits,
+  screening: seed.screening,
+})
+const signedOutSession = () => ({ loggedIn: false, role: null, accountId: null })
 const readData = () => {
   try {
-    const stored = JSON.parse(localStorage.getItem(KEY) || '{}')
-    const profile = { ...seed.profile, ...stored.profile }
-    if (profile.pinHash === '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92') profile.pinHash = seed.profile.pinHash
-    return { ...seed, ...stored, profile, availability: stored.availability || seed.availability, appointments: stored.appointments || seed.appointments, virtualConsultations: stored.virtualConsultations || seed.virtualConsultations }
-  } catch { return seed }
+    const stored = JSON.parse(localStorage.getItem(KEY) || 'null')
+    if (stored && Array.isArray(stored.accounts)) {
+      const accounts = stored.accounts.map(normalizeAccount).filter((account) => account.id)
+      const candidateSession = stored.session || signedOutSession()
+      const validRole = ['patient', 'admin', 'doctor'].includes(candidateSession.role)
+      const patientSessionValid = candidateSession.role !== 'patient' || accounts.some((account) => account.id === candidateSession.accountId)
+      const session = candidateSession.loggedIn && validRole && patientSessionValid
+        ? candidateSession
+        : signedOutSession()
+      return { accounts: accounts.length ? accounts : [makeDemoAccount()], session, availability: stored.availability || seed.availability }
+    }
+
+    const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null')
+    const legacyAccount = legacy?.profile
+      ? normalizeAccount({
+        id: legacy.profile.memberId,
+        profile: { ...seed.profile, ...legacy.profile },
+        ticket: legacy.ticket || seed.ticket,
+        appointments: legacy.appointments || seed.appointments,
+        virtualConsultations: legacy.virtualConsultations || [],
+        visits: legacy.visits || seed.visits,
+        screening: legacy.screening || seed.screening,
+      })
+      : makeDemoAccount()
+    return { accounts: [legacyAccount], session: signedOutSession(), availability: legacy?.availability || seed.availability }
+  } catch {
+    return { accounts: [makeDemoAccount()], session: signedOutSession(), availability: seed.availability }
+  }
 }
 const hashPin = async (pin) => { const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin)); return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join('') }
 const randomInt = (max) => crypto.getRandomValues(new Uint32Array(1))[0] % max
 const dateText = () => new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
+const createConsultationIdentity = () => ({ id: `VC-${Date.now()}-${randomInt(1000)}`, createdAt: new Date().toISOString() })
+const greeting = () => {
+  const hour = new Date().getHours()
+  if (hour >= 4 && hour < 11) return 'Pagi'
+  if (hour < 15 && hour >= 11) return 'Siang'
+  if (hour < 18 && hour >= 15) return 'Sore'
+  return 'Malam'
+}
+const honorific = (gender) => gender === 'Laki-laki' ? 'Bapak' : gender === 'Perempuan' ? 'Ibu' : ''
 
 function Modal({ title, close, children, wide = false }) {
   useEffect(() => { const keydown = (event) => event.key === 'Escape' && close(); window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown) }, [close])
@@ -58,6 +120,47 @@ function Modal({ title, close, children, wide = false }) {
 }
 function PinField({ label, name, visible, toggle, required = true }) {
   return <label className="pin-field">{label}<span><input aria-label={label} name={name} type={visible ? 'text' : 'password'} inputMode="numeric" pattern="[0-9]{8}" minLength="8" maxLength="8" autoComplete="new-password" placeholder="8 digit angka" required={required} /><button type="button" onClick={toggle} aria-label={visible ? 'Sembunyikan PIN' : 'Tampilkan PIN'}>{visible ? <EyeOff size={15} /> : <Eye size={15} />}</button></span></label>
+}
+function LoginForm({ authRole, setAuthRole, authMode, setAuthMode, showPin, setShowPin, authError, onSubmit, showRoleSelect = false }) {
+  return <form className="form-stack auth-form" onSubmit={onSubmit}>
+    {showRoleSelect && <label>Jenis akun<select value={authRole} onChange={(event) => { setAuthRole(event.target.value); }}><option value="admin">Admin Puskesmas</option><option value="doctor">Dokter</option></select></label>}
+    {authRole === 'patient' ? <>
+      <label>Nomor telepon / nomor peserta<input name="identifier" required autoComplete="username" placeholder="0812… atau 00020268492" /></label>
+      <label>{authMode === 'key' ? 'Kunci unik pasien' : 'PIN keamanan'}<span className="login-pin"><input aria-label={authMode === 'key' ? 'Kunci unik pasien' : 'PIN keamanan'} name="secret" type={authMode === 'key' || showPin ? 'text' : 'password'} required inputMode="numeric" autoComplete="current-password" /><button type="button" onClick={() => setShowPin(!showPin)} aria-label={showPin ? 'Sembunyikan PIN' : 'Tampilkan PIN'}>{showPin ? <EyeOff size={15} /> : <Eye size={15} />}</button></span></label>
+      <button type="button" className="text-link auth-link" onClick={() => setAuthMode(authMode === 'key' ? 'pin' : 'key')}>{authMode === 'key' ? 'Kembali masuk dengan PIN' : 'Lupa PIN? Gunakan kunci unik'}</button>
+    </> : <>
+      <label>Email akun<input name="identifier" type="email" required autoComplete="username" placeholder={authRole === 'admin' ? 'admin@puskesmas.local' : 'dokter@puskesmas.local'} /></label>
+      <PinField label="PIN petugas" name="secret" visible={showPin} toggle={() => setShowPin(!showPin)} />
+    </>}
+    {authError && <p className="form-error" role="alert">{authError}</p>}
+    <button className="button primary full-button">Masuk</button>
+    <div className="auth-demo-hint"><b>Akun demo</b>{authRole === 'patient' ? <span>0812 3456 7890 · PIN 12345678</span> : authRole === 'admin' ? <span>admin@puskesmas.local · PIN 87654321</span> : <span>dokter@puskesmas.local · PIN 24681357</span>}</div>
+  </form>
+}
+function RegisterForm({ showPin, setShowPin, pinStatus, onSubmit }) {
+  return <form className="form-stack auth-form" onSubmit={onSubmit}>
+    <div className="form-grid"><label>Nama lengkap<input name="name" required autoComplete="name" /></label><label>Nomor telepon<input name="phone" required inputMode="tel" autoComplete="tel" placeholder="08xxxxxxxxxx" /></label><label className="span-two">Alamat<input name="address" required autoComplete="street-address" /></label><label>Tanggal lahir<input name="birthDate" type="date" required /></label><label>Jenis kelamin<select name="gender" required defaultValue=""><option value="">Pilih</option>{GENDERS.map((gender) => <option key={gender} value={gender}>{gender}</option>)}</select></label><label>Golongan darah<select name="blood" required defaultValue=""><option value="">Pilih</option>{['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Tidak tahu'].map((value) => <option key={value} value={value}>{value}</option>)}</select></label><label>Kontak darurat<input name="emergency" required inputMode="tel" /></label></div>
+    <fieldset className="economy-choice"><legend>Pilih skema layanan</legend><label><input type="radio" name="economy" value="subsidi" defaultChecked /><span><b>Subsidi penuh</b><small>Dukungan layanan tanpa iuran bulanan, biaya berobat Rp 0.</small></span><i /></label><label><input type="radio" name="economy" value="mandiri" /><span><b>Layanan mandiri / reguler</b><small>Pembayaran transparan langsung di loket saat menerima layanan.</small></span><i /></label></fieldset>
+    <div className="pin-fields"><PinField label="PIN keamanan (8 angka)" name="pin" visible={showPin} toggle={() => setShowPin(!showPin)} /><PinField label="Ulangi PIN keamanan" name="pinConfirmation" visible={showPin} toggle={() => setShowPin(!showPin)} /></div>
+    {pinStatus && <p className={pinStatus.startsWith('Akun siap') ? 'form-success' : 'form-error'} role="status">{pinStatus}</p>}
+    <button className="button primary full-button">Buat akun & kartu pasien</button>
+    <p className="privacy-note"><LockKeyhole size={12} /> Tidak meminta NIK. Data demo disimpan pada browser ini.</p>
+  </form>
+}
+function AuthLanding({ tab, setTab, authRole, setAuthRole, authMode, setAuthMode, showPin, setShowPin, authError, setAuthError, pinStatus, setPinStatus, onLogin, onRegister }) {
+  const selectTab = (nextTab) => {
+    setTab(nextTab); setAuthError(''); setPinStatus(''); setAuthMode('pin')
+    if (nextTab === 'patient') setAuthRole('patient')
+    if (nextTab === 'staff') setAuthRole('admin')
+  }
+  return <div className="auth-screen">
+    <header className="auth-brand"><span className="brand-logo"><Hospital size={20} /></span><span><b>SIPUSKES Depok</b><small>UPTD PKM BEJI · KOTA DEPOK</small></span><span className="open-badge"><i /> Siaga 24 Jam</span></header>
+    <main className="auth-layout"><section className="auth-intro"><span className="auth-accreditation"><ShieldCheck size={14} /> Puskesmas Terakreditasi Paripurna</span><h1>Layanan kesehatan<br />Depok, lebih dekat.</h1><p>Akses antrean, rekam medis, resep, dan layanan Puskesmas Beji dalam satu portal.</p><div className="auth-service-hours"><Clock3 size={15} /><span><b>Layanan gawat darurat 119</b><small>Siaga 24 jam untuk kondisi darurat medis.</small></span></div></section>
+      <section className="auth-panel"><div className="auth-tabs" role="tablist" aria-label="Jenis akses"><button role="tab" aria-selected={tab === 'patient'} className={tab === 'patient' ? 'active' : ''} onClick={() => selectTab('patient')}>Masuk Pasien</button><button role="tab" aria-selected={tab === 'staff'} className={tab === 'staff' ? 'active' : ''} onClick={() => selectTab('staff')}>Masuk Petugas</button><button role="tab" aria-selected={tab === 'register'} className={tab === 'register' ? 'active' : ''} onClick={() => selectTab('register')}>Daftar Akun Baru</button></div>
+        {tab === 'register' ? <><header className="auth-panel-title"><h2>Daftar akun pasien</h2><p>Isi data dasar untuk membuat kartu pasien digital.</p></header><RegisterForm showPin={showPin} setShowPin={setShowPin} pinStatus={pinStatus} onSubmit={onRegister} /></> : <><header className="auth-panel-title"><h2>{tab === 'staff' ? 'Masuk portal petugas' : `Selamat ${greeting()}, silakan masuk`}</h2><p>{tab === 'staff' ? 'Pilih jenis akun admin atau dokter.' : 'Masuk dengan nomor telepon dan PIN pasien.'}</p></header><LoginForm authRole={authRole} setAuthRole={setAuthRole} authMode={authMode} setAuthMode={setAuthMode} showPin={showPin} setShowPin={setShowPin} authError={authError} onSubmit={onLogin} showRoleSelect={tab === 'staff'} /></>}
+      </section></main>
+    <footer className="auth-footer">SIPUSKES Depok · Data demo tersimpan lokal pada perangkat ini.</footer>
+  </div>
 }
 function PatientCard({ profile, compact = true }) {
   const memberNumber = profile.memberId.replace(/(\d{4})(\d{4})(\d{3})/, '$1 $2 $3')
@@ -87,34 +190,76 @@ function JitsiRoom({ room, name }) {
 }
 
 function App() {
-  const [data, setData] = useState(readData); const [page, setPage] = useState('Beranda'); const [modal, setModal] = useState('')
+  const [store, setStore] = useState(readData); const [page, setPage] = useState(() => store.session.loggedIn ? (store.session.role === 'admin' ? 'Dasbor admin' : store.session.role === 'doctor' ? 'Dasbor dokter' : 'Beranda') : 'Beranda'); const [modal, setModal] = useState('')
   const [notice, setNotice] = useState(''); const [notifications, setNotifications] = useState(false); const [mobileNav, setMobileNav] = useState(false)
   const [query, setQuery] = useState(''); const [queueForm, setQueueForm] = useState({ clinic: clinics[0][0], day: 'today', arrival: '09:00', doctor: doctors[0][0], complaint: '' })
-  const [screening, setScreening] = useState(data.screening); const [ticket, setTicket] = useState(data.ticket)
   const [authMode, setAuthMode] = useState('pin'); const [authRole, setAuthRole] = useState('patient'); const [authError, setAuthError] = useState(''); const [pinStatus, setPinStatus] = useState(''); const [showPin, setShowPin] = useState(false)
+  const [landingTab, setLandingTab] = useState('patient')
   const [alarm, setAlarm] = useState(false); const [room, setRoom] = useState('sipuskes-konsultasi-ruang-018'); const [currentConsultation, setCurrentConsultation] = useState(null); const [referral, setReferral] = useState('')
-  const profile = data.profile; const role = data.role || 'patient'; const clinic = clinics.find(([name]) => name === queueForm.clinic) || clinics[0]; const ClinicIcon = clinic[1]
-  const availableDoctors = doctors.filter(([name]) => data.availability[queueForm.day]?.[name])
-  const visits = useMemo(() => data.visits.filter((visit) => `${visit.clinic} ${visit.diagnosis} ${visit.doctor}`.toLowerCase().includes(query.toLowerCase())), [data.visits, query])
-  useEffect(() => { localStorage.setItem(KEY, JSON.stringify({ ...data, ticket, screening })) }, [data, ticket, screening])
+  const session = store.session
+  const role = session.loggedIn ? session.role : 'patient'
+  const activeAccount = role === 'patient' ? store.accounts.find((account) => account.id === session.accountId) : null
+  const staffProfile = role === 'doctor'
+    ? { ...emptyProfile, name: 'dr. Aditya Pratama', memberId: 'STAFF-DOKTER' }
+    : { ...emptyProfile, name: 'Admin PKM Beji', memberId: 'STAFF-ADMIN' }
+  const profile = activeAccount?.profile || (session.loggedIn ? staffProfile : seed.profile)
+  const emptyTicket = { clinic: 'Belum ada antrean', unit: 'Pilih poli untuk mendaftar', number: '—', ahead: 0, wait: 0, arrival: '--:--', day: 'today', doctor: '', complaint: '' }
+  const patientAccounts = store.accounts
+  const data = {
+    role,
+    profile,
+    ticket: activeAccount?.ticket || emptyTicket,
+    screening: activeAccount?.screening || { complaint: '', history: '', submitted: false },
+    visits: activeAccount?.visits || [],
+    availability: store.availability,
+    appointments: role === 'patient' ? (activeAccount?.appointments || []) : patientAccounts.flatMap((account) => account.appointments),
+    virtualConsultations: role === 'patient' ? (activeAccount?.virtualConsultations || []) : patientAccounts.flatMap((account) => account.virtualConsultations),
+  }
+  const ticket = data.ticket
+  const screening = data.screening
+  const clinic = clinics.find(([name]) => name === queueForm.clinic) || clinics[0]; const ClinicIcon = clinic[1]
+  const availableDoctors = doctors.filter(([name]) => store.availability[queueForm.day]?.[name])
+  const visits = data.visits.filter((visit) => `${visit.clinic} ${visit.diagnosis} ${visit.doctor}`.toLowerCase().includes(query.toLowerCase()))
+  useEffect(() => { localStorage.setItem(KEY, JSON.stringify(store)) }, [store])
   useEffect(() => { if (!notice) return undefined; const timer = setTimeout(() => setNotice(''), 3500); return () => clearTimeout(timer) }, [notice])
   const toast = (text) => { setNotice(text); setNotifications(false) }
-  const openPortalLogin = (nextRole) => { setAuthRole(nextRole); setAuthMode('pin'); setAuthError(''); setModal('login') }
+  const updatePatientAccount = (update, accountId = session.accountId) => {
+    if (!accountId) return
+    setStore((current) => ({ ...current, accounts: current.accounts.map((account) => account.id === accountId ? update(account) : account) }))
+  }
+  const signOut = (nextTab = 'patient') => {
+    setStore((current) => ({ ...current, session: signedOutSession() }))
+    setPage('Beranda'); setModal(''); setNotifications(false); setMobileNav(false)
+    setAuthError(''); setPinStatus(''); setLandingTab(nextTab); setAuthRole(nextTab === 'staff' ? 'admin' : 'patient')
+  }
+  const openPortalLogin = (nextRole) => {
+    setStore((current) => ({ ...current, session: signedOutSession() }))
+    setLandingTab(nextRole === 'patient' ? 'patient' : 'staff')
+    setAuthRole(nextRole); setAuthMode('pin'); setAuthError(''); setModal('')
+  }
     const go = (next) => {
+      if (!session.loggedIn) return
       if (['Dasbor admin', 'Operasional admin', 'Analitik petugas'].includes(next) && role !== 'admin') { toast('Halaman ini hanya untuk admin Puskesmas.'); return }
       if (['Dasbor dokter', 'Antrean dokter'].includes(next) && role !== 'doctor') { toast('Halaman ini hanya tersedia untuk akun dokter.'); return }
     setPage(next); setMobileNav(false)
   }
 
   async function register(event) {
-    event.preventDefault(); const form = new FormData(event.currentTarget); const old = JSON.parse(localStorage.getItem(KEY) || '{}')
+    event.preventDefault(); const form = new FormData(event.currentTarget)
     const pin = String(form.get('pin')); const confirmation = String(form.get('pinConfirmation'))
     if (!/^\d{8}$/.test(pin)) { setPinStatus('PIN harus terdiri dari tepat 8 angka.'); return }
     if (pin !== confirmation) { setPinStatus('PIN dan PIN verifikasi harus sama.'); return }
-    const memberId = String(Math.max(20268492, Number(old.profile?.memberId || 20268491) + 1)).padStart(11, '0')
+    const phone = String(form.get('phone')).trim()
+    const normalizedPhone = phone.replace(/\D/g, '')
+    if (store.accounts.some((account) => account.profile.phone.replace(/\D/g, '') === normalizedPhone)) { setPinStatus('Nomor telepon sudah terdaftar. Silakan masuk ke akun Anda.'); return }
+    const highestMemberId = store.accounts.reduce((highest, account) => Math.max(highest, Number(account.profile.memberId) || 0), 20268492)
+    if (highestMemberId >= 99999999999) { setPinStatus('Nomor peserta sudah mencapai batas 11 digit.'); return }
+    const memberId = String(highestMemberId + 1).padStart(11, '0')
     const random = () => crypto.getRandomValues(new Uint16Array(1))[0].toString(16).padStart(4, '0').toUpperCase()
-    const nextProfile = { name: String(form.get('name')).trim(), phone: String(form.get('phone')), address: String(form.get('address')), birthDate: String(form.get('birthDate')), gender: String(form.get('gender')), blood: String(form.get('blood')), emergency: String(form.get('emergency')), economy: String(form.get('economy')), memberId, uniqueKey: `KEY-${random()}-${random()}`, pinHash: await hashPin(String(form.get('pin'))) }
-    setData({ ...data, profile: nextProfile, role: 'patient' }); setPinStatus(''); setModal(''); toast(`Akun siap. Nomor peserta Anda ${memberId}`)
+    const nextProfile = { name: String(form.get('name')).trim(), phone, address: String(form.get('address')), birthDate: String(form.get('birthDate')), gender: String(form.get('gender')), blood: String(form.get('blood')), emergency: String(form.get('emergency')), economy: String(form.get('economy')), memberId, uniqueKey: `KEY-${random()}-${random()}`, pinHash: await hashPin(pin) }
+    const account = normalizeAccount({ id: memberId, profile: nextProfile, appointments: [], visits: [], virtualConsultations: [], ticket: null, screening: { complaint: '', history: '', submitted: false } })
+    setStore((current) => ({ ...current, accounts: [...current.accounts, account], session: { loggedIn: true, role: 'patient', accountId: account.id } }))
+    setPage('Beranda'); setPinStatus(''); setAuthError(''); setModal(''); toast(`Akun siap. Nomor peserta Anda ${memberId}`)
   }
   async function login(event) {
     event.preventDefault(); const form = new FormData(event.currentTarget); const id = String(form.get('identifier')).replaceAll(' ', ''); const secret = String(form.get('secret'))
@@ -122,45 +267,50 @@ function App() {
       const staffId = authRole === 'admin' ? 'admin@puskesmas.local' : 'dokter@puskesmas.local'
       const staffPin = authRole === 'admin' ? '87654321' : '24681357'
       if (id.toLowerCase() !== staffId || secret !== staffPin) { setAuthError('Email atau PIN petugas tidak sesuai.'); return }
-      setData({ ...data, role: authRole }); setPage(authRole === 'admin' ? 'Dasbor admin' : 'Dasbor dokter'); setAuthError(''); setModal(''); toast(`Berhasil masuk sebagai ${authRole === 'admin' ? 'admin' : 'dokter'}.`); return
+      setStore((current) => ({ ...current, session: { loggedIn: true, role: authRole, accountId: null } }))
+      setPage(authRole === 'admin' ? 'Dasbor admin' : 'Dasbor dokter'); setAuthError(''); setModal(''); toast(`Berhasil masuk sebagai ${authRole === 'admin' ? 'admin' : 'dokter'}.`); return
     }
-    const idOkay = id === profile.phone.replaceAll(' ', '') || id === profile.memberId
-    const secretOkay = authMode === 'key' ? secret.toUpperCase() === profile.uniqueKey : await hashPin(secret) === profile.pinHash
-    if (!idOkay || !secretOkay) { setAuthError('Nomor telepon/peserta atau kredensial belum sesuai.'); return }
-    setData({ ...data, role: 'patient' }); setPage('Beranda'); setAuthError(''); setModal(''); toast('Berhasil masuk ke akun pasien.')
+    const normalizedId = id.replace(/\D/g, '')
+    const account = store.accounts.find((candidate) => candidate.profile.memberId === id || candidate.profile.phone.replace(/\D/g, '') === normalizedId)
+    const secretOkay = account && (authMode === 'key' ? secret.toUpperCase() === account.profile.uniqueKey : await hashPin(secret) === account.profile.pinHash)
+    if (!account || !secretOkay) { setAuthError('Nomor telepon/peserta atau kredensial belum sesuai.'); return }
+    setStore((current) => ({ ...current, session: { loggedIn: true, role: 'patient', accountId: account.id } }))
+    setPage('Beranda'); setAuthError(''); setPinStatus(''); setModal(''); toast('Berhasil masuk ke akun pasien.')
   }
   async function changePin(event) {
     event.preventDefault(); const form = new FormData(event.currentTarget)
     if (await hashPin(String(form.get('current'))) !== profile.pinHash) { setPinStatus('PIN saat ini tidak sesuai.'); return }
     const next = String(form.get('next')); if (!/^\d{8}$/.test(next)) { setPinStatus('PIN baru harus tepat 8 angka.'); return }
     if (next !== String(form.get('confirmation'))) { setPinStatus('PIN baru dan verifikasi harus sama.'); return }
-    setData({ ...data, profile: { ...profile, pinHash: await hashPin(next) } }); setPinStatus('PIN berhasil diperbarui di perangkat ini.'); event.currentTarget.reset()
+    const pinHash = await hashPin(next)
+    updatePatientAccount((account) => ({ ...account, profile: { ...account.profile, pinHash } })); setPinStatus('PIN berhasil diperbarui di perangkat ini.'); event.currentTarget.reset()
   }
   function bookQueue(event) {
     event.preventDefault()
     if (!availableDoctors.some(([name]) => name === queueForm.doctor)) { toast('Pilih tenaga medis yang tersedia pada hari tersebut.'); return }
     const ahead = randomInt(6) + 2
     const number = `A-${String(randomInt(70) + 19).padStart(3, '0')}`
-    const nextTicket = { clinic: clinic[0], unit: clinic[2], number, ahead, wait: ahead * 10, arrival: queueForm.arrival, day: queueForm.day, doctor: queueForm.doctor, complaint: queueForm.complaint }
-    setTicket(nextTicket)
-    setData({ ...data, appointments: [{ ...nextTicket, patient: profile.name, memberId: profile.memberId, status: 'Menunggu' }, ...data.appointments] })
+    const nextTicket = { memberId: profile.memberId, clinic: clinic[0], unit: clinic[2], number, ahead, wait: ahead * 10, arrival: queueForm.arrival, day: queueForm.day, doctor: queueForm.doctor, complaint: queueForm.complaint }
+    updatePatientAccount((account) => ({ ...account, ticket: nextTicket, appointments: [{ ...nextTicket, patient: profile.name, memberId: profile.memberId, status: 'Menunggu' }, ...account.appointments] }))
     setModal(''); go('Antrean saya'); toast('Antrean berhasil dibuat.')
   }
-  function saveScreening(event) { event.preventDefault(); const form = new FormData(event.currentTarget); setScreening({ complaint: String(form.get('complaint')), history: String(form.get('history')), submitted: true }); toast('Skrining kesehatan tersimpan.') }
+  function saveScreening(event) { event.preventDefault(); const form = new FormData(event.currentTarget); updatePatientAccount((account) => ({ ...account, screening: { memberId: profile.memberId, complaint: String(form.get('complaint')), history: String(form.get('history')), submitted: true } })); toast('Skrining kesehatan tersimpan.') }
   function toggleAvailability(day, doctor) {
-    setData({ ...data, availability: { ...data.availability, [day]: { ...data.availability[day], [doctor]: !data.availability[day][doctor] } } })
+    setStore((current) => ({ ...current, availability: { ...current.availability, [day]: { ...current.availability[day], [doctor]: !current.availability[day][doctor] } } }))
   }
   function requestVirtualConsultation() {
-    const id = `VC-${Date.now()}-${randomInt(1000)}`
-    const request = { id, room: `sipuskes-${id.toLowerCase()}`, patient: profile.name, memberId: profile.memberId, doctor: ticket.doctor || 'dr. Aditya Pratama', clinic: ticket.clinic || 'Poli Umum', complaint: ticket.complaint || 'Konsultasi keluhan ringan', createdAt: new Date().toISOString(), status: 'Menunggu dokter' }
-    setData({ ...data, virtualConsultations: [request, ...data.virtualConsultations] })
+    const { id, createdAt } = createConsultationIdentity()
+    const request = { id, accountId: activeAccount.id, room: `sipuskes-${id.toLowerCase()}`, patient: profile.name, memberId: profile.memberId, doctor: ticket.doctor || 'dr. Aditya Pratama', clinic: ticket.clinic || 'Poli Umum', complaint: ticket.complaint || 'Konsultasi keluhan ringan', createdAt, status: 'Menunggu dokter' }
+    updatePatientAccount((account) => ({ ...account, virtualConsultations: [request, ...account.virtualConsultations] }))
     setCurrentConsultation(request); setRoom(request.room); setModal('video')
   }
   function acceptVirtualConsultation(request) {
     const activeRequest = { ...request, status: 'Sedang berlangsung' }
-    setData({ ...data, virtualConsultations: data.virtualConsultations.map((item) => item.id === request.id ? activeRequest : item) })
+    setStore((current) => ({ ...current, accounts: current.accounts.map((account) => ({ ...account, virtualConsultations: account.virtualConsultations.map((item) => item.id === request.id ? activeRequest : item) })) }))
     setCurrentConsultation(activeRequest); setRoom(request.room); setModal('video')
   }
+
+  if (!session.loggedIn) return <AuthLanding tab={landingTab} setTab={setLandingTab} authRole={authRole} setAuthRole={setAuthRole} authMode={authMode} setAuthMode={setAuthMode} showPin={showPin} setShowPin={setShowPin} authError={authError} setAuthError={setAuthError} pinStatus={pinStatus} setPinStatus={setPinStatus} onLogin={login} onRegister={register} />
 
   const nav = role === 'admin'
     ? [['Dasbor admin', LayoutDashboard, 'PORTAL ADMIN'], ['Operasional admin', Ticket], ['Dasbor Analitik Petugas', Activity]]
@@ -181,7 +331,7 @@ function App() {
     ? ({ Beranda: 'Dasbor & Ringkasan', 'Antrean saya': 'Pendaftaran Antrean', 'Rekam medis': 'Skrining & RME Pasien', 'Obat & apotek': 'Apotek & Jadwal Obat', 'Konsultasi virtual': 'Konsultasi Jitsi Video', 'Fasilitas & jadwal': 'Bed & Jadwal Dokter', 'Rujukan RS 119 Depok': 'Rujukan RS 119 Depok' }[page])
     : role === 'admin' && page === 'Analitik petugas' ? 'Dasbor Analitik Petugas' : page
   const activateNavItem = (label) => role === 'patient' ? patientNavActions[label]?.() : go(label === 'Dasbor Analitik Petugas' ? 'Analitik petugas' : label)
-  return <div className={`app-shell role-${role}`} onClick={(event) => { if (role !== 'patient' && event.target.closest('.profile-button, .sidebar-foot .nav-link')) setModal('staff') }}>
+  return <div className={`app-shell role-${role}`} onClick={(event) => { const logoutButton = event.target.closest('.logout-button'); if (logoutButton) { signOut(logoutButton.textContent.includes('Buat akun') ? 'register' : 'patient'); return } if (role !== 'patient' && event.target.closest('.profile-button, .sidebar-foot .nav-link')) setModal('staff') }}>
     <header className="topbar"><div className="top-brand"><button className="icon-button mobile-menu" aria-label="Buka menu" onClick={() => setMobileNav(!mobileNav)}><Menu size={18} /></button><span className="brand-logo"><Hospital size={20} /></span><span className="brand-type"><b>SIPUSKES<span>·</span></b><small>Depok</small></span><span className="open-badge"><i /> Siaga 24 Jam</span></div><label className="search-bar"><Search size={15} /><input placeholder="Cari poli, nomor tiket, dokter, atau jadwal resep" value={query} onChange={(event) => setQuery(event.target.value)} /><kbd>⌘ K</kbd></label><div className="top-actions">{role === 'patient' && <div className="portal-switch" aria-label="Pilih portal"><button className="portal-choice active" onClick={() => openPortalLogin('patient')}>Portal Pasien</button><button className="portal-choice" onClick={() => openPortalLogin('admin')}>Portal Petugas</button></div>}<button className="emergency-link" onClick={() => setModal('emergency')}><Siren size={15} /><span>Darurat 119</span></button><div className="notification-wrap"><button className="icon-button" aria-label="Notifikasi" onClick={() => setNotifications(!notifications)}><Bell size={17} /><i className="notification-dot" /></button>{notifications && <div className="notification-popover"><b>Notifikasi</b><p><Pill size={14} /> Paracetamol · sesudah makan</p><p><Ticket size={14} /> {ticket.ahead} pasien di depan antrean</p><p><CalendarDays size={14} /> Kontrol · 22 Okt 2026</p></div>}</div><button className="profile-button" onClick={() => setModal('account')}><span className="avatar">{profile.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span><span>{profile.name}</span><ChevronDown size={13} /></button></div></header>
     <div className="layout"><aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div><button className="clinic-picker"><span><Hospital size={16} /></span><span><b>UPTD PKM Beji</b><small><MapPin size={10} /> Jl. Bambu Kuning No. 1</small></span><ChevronDown size={13} /></button><nav>{nav.map(([label, Icon, group]) => <div key={label}>{group && <small className="nav-group">{group}</small>}<button className={`nav-link ${activeNavLabel === label ? 'active' : ''}`} onClick={() => activateNavItem(label)}><Icon size={16} /><span>{label}</span>{label === 'Pendaftaran Antrean' && <i>1</i>}</button></div>)}</nav></div><div className="sidebar-foot"><div className="help-box"><MessageCircle size={17} /><b>Butuh bantuan?</b><span>Petugas kami siap membantu.</span><button onClick={() => toast('Petugas layanan akan menghubungi Anda.')}>Hubungi petugas <ArrowRight size={12} /></button></div>{role === 'patient' && <button className="sidebar-emergency" onClick={() => setModal('emergency')}><Siren size={14} /> Panggilan Darurat 119</button>}<button className="nav-link" onClick={() => setModal('account')}><Settings size={15} /> Pengaturan akun</button><small>© 2026 SIPUSKES Depok<br />Privasi · Bantuan</small></div></aside>
     <main className="main-content">
@@ -191,8 +341,8 @@ function App() {
       {page === 'Antrean dokter' && role === 'doctor' && <DoctorQueuePage appointments={data.appointments} go={go} />}
       {page === 'Beranda' && role === 'patient' && <PatientDashboard profile={profile} ticket={ticket} availability={data.availability} openCard={() => setModal('card')} openQueue={() => setModal('queue')} openConsult={requestVirtualConsultation} go={go} />}
       {page === 'Konsultasi virtual' && role === 'doctor' && <DoctorConsultations consultations={data.virtualConsultations} onAccept={acceptVirtualConsultation} />}
-      {modal === 'staff' && role !== 'patient' && <StaffAccount role={role} onClose={() => setModal('')} onLogout={() => { setData({ ...data, role: 'patient' }); setPage('Beranda'); setModal('') }} />}
-      {page === 'Beranda' && <><div className="welcome"><div><small className="eyebrow">{dateText()}</small><h1>Selamat pagi, {profile.name.split(' ')[0]} <span>✳</span></h1><p>Semoga hari ini terasa lebih sehat. Layanan Anda siap diakses.</p></div><button className="button primary" onClick={() => setModal('queue')}><Plus size={15} /> Daftar antrean</button></div><div className="dashboard-grid"><section className="dashboard-main"><div className="queue-hero"><div className="queue-copy"><small className="live-label"><i /> ANTREAN AKTIF</small><h2>Anda tinggal<br /><em>{ticket.ahead} pasien lagi</em></h2><p>{ticket.clinic} <i>·</i> Estimasi tunggu {ticket.wait} menit</p><div><button className="button light-button" onClick={() => go('Antrean saya')}>Lihat tiket <ArrowRight size={13} /></button><span><Clock3 size={12} /> Kedatangan {ticket.arrival} WIB</span></div></div><div className="queue-token"><small>Nomor antrean</small><b>{ticket.number}</b><hr /><small>Pasien di depan</small><strong>{ticket.ahead} orang</strong><Ticket className="token-mark" size={48} /></div></div><div className="section-heading"><div><small className="eyebrow">AKSES CEPAT</small><h2>Layanan kesehatan</h2></div><button className="text-link" onClick={() => go('Fasilitas & jadwal')}>Semua layanan <ArrowRight size={12} /></button></div><div className="quick-grid">{[['Ambil antrean', 'Daftar poli online', Ticket, 'green', () => setModal('queue')], ['Rekam medis', 'Riwayat kesehatan', FileText, 'blue', () => go('Rekam medis')], ['Konsultasi online', 'Temui dokter virtual', Video, 'lilac', () => go('Konsultasi virtual')], ['Obat & apotek', 'Resep dan stok obat', Pill, 'orange', () => go('Obat & apotek')]].map(([title, subtitle, Icon, color, action]) => <button className="quick-tile" key={title} onClick={action}><span className={`tile-icon ${color}`}><Icon size={17} /></span><b>{title}</b><small>{subtitle}</small><ChevronRight size={13} /></button>)}</div><div className="section-heading section-gap"><div><small className="eyebrow">KAMIS, 15 OKTOBER</small><h2>Jadwal dokter hari ini</h2></div><button className="text-link" onClick={() => go('Fasilitas & jadwal')}>Lihat jadwal <ArrowRight size={12} /></button></div><div className="doctor-list">{doctors.slice(0, 3).map(([name, clinicName, time, status], index) => <div className="doctor-row" key={name}><span className={`doctor-avatar doctor-${index}`}>{name.split(' ').slice(1).map((part) => part[0]).join('').slice(0, 2)}</span><span className="doctor-name"><b>{name}</b><small>{clinicName}</small></span><span className="doctor-time"><Clock3 size={11} /> {time}</span><span className={`status ${status === 'Berpraktik' ? 'status-green' : ''}`}><i /> {status}</span></div>)}</div><div className="section-heading section-gap"><div><small className="eyebrow">PEMANTAUAN KESEHATAN</small><h2>Ringkasan kunjungan</h2></div><button className="text-link" onClick={() => go('Rekam medis')}>Buka rekam medis <ArrowRight size={12} /></button></div><button className="visit-summary" onClick={() => go('Rekam medis')}><span><FileText size={16} /></span><span><b>{data.visits[0].diagnosis}</b><small>{data.visits[0].date} · {data.visits[0].clinic}</small></span><i className="status status-green"><i /> Selesai</i><ChevronRight size={14} /></button></section><aside className="dashboard-rail"><div className="rail-panel"><div className="rail-heading"><b>Kartu pasien digital</b><button onClick={() => setModal('card')}>•••</button></div><PatientCard profile={profile} /><button className="card-detail" onClick={() => setModal('card')}>Lihat detail kartu <ArrowRight size={12} /></button></div><div className="subsidy-panel"><div><span><ShieldCheck size={14} /></span><b>Status layanan</b><i><Check size={9} /> Aktif</i></div><small>{profile.economy === 'subsidi' ? 'Subsidi penuh' : 'Layanan mandiri'}</small><strong>{profile.economy === 'subsidi' ? 'Bebas Biaya' : 'Pembayaran di loket'}</strong><hr /><small>{profile.economy === 'subsidi' ? 'Tidak ada iuran bulanan · Rp 0' : 'Estimasi sebelum layanan'}</small></div><div className="rail-panel med-panel"><div className="rail-heading"><span><small className="eyebrow">PENGINGAT OBAT</small><b>Jadwal hari ini</b></span><button onClick={() => go('Obat & apotek')}>Lihat</button></div>{[['12:30', 'Paracetamol 500 mg', true], ['20:00', 'Vitamin C 500 mg', false]].map(([time, name, done]) => <div className="med-time" key={time}><small>{time}</small><i className={done ? '' : 'pending'} /><span><b>{name}</b><small>1 tablet · sesudah makan</small></span>{done ? <CheckCircle2 size={15} /> : <button aria-label="Tandai diminum" onClick={() => toast(`${name} ditandai diminum.`)}><Check size={12} /></button>}</div>)}<button className={`alarm-button ${alarm ? 'alarm-on' : ''}`} onClick={() => { setAlarm(!alarm); toast(alarm ? 'Alarm dimatikan.' : 'Alarm minum obat diaktifkan di layar.') }}><Bell size={13} /> {alarm ? 'Alarm aktif' : 'Aktifkan alarm layar'}</button></div><button className="bed-mini" onClick={() => go('Fasilitas & jadwal')}><BedDouble size={16} /><span><b>Ketersediaan tempat tidur</b><small>IGD dan rawat inap · data demo</small></span><strong>4/12</strong></button></aside></div></>}
+      {modal === 'staff' && role !== 'patient' && <StaffAccount role={role} onClose={() => setModal('')} onLogout={() => signOut('patient')} />}
+      {page === 'Beranda' && data.visits.length > 0 && <><div className="welcome"><div><small className="eyebrow">{dateText()}</small><h1>Selamat {greeting()}, {honorific(profile.gender)} {profile.name.split(' ')[0]} <span>✳</span></h1><p>Semoga hari ini terasa lebih sehat. Layanan Anda siap diakses.</p></div><button className="button primary" onClick={() => setModal('queue')}><Plus size={15} /> Daftar antrean</button></div><div className="dashboard-grid"><section className="dashboard-main"><div className="queue-hero"><div className="queue-copy"><small className="live-label"><i /> ANTREAN AKTIF</small><h2>Anda tinggal<br /><em>{ticket.ahead} pasien lagi</em></h2><p>{ticket.clinic} <i>·</i> Estimasi tunggu {ticket.wait} menit</p><div><button className="button light-button" onClick={() => go('Antrean saya')}>Lihat tiket <ArrowRight size={13} /></button><span><Clock3 size={12} /> Kedatangan {ticket.arrival} WIB</span></div></div><div className="queue-token"><small>Nomor antrean</small><b>{ticket.number}</b><hr /><small>Pasien di depan</small><strong>{ticket.ahead} orang</strong><Ticket className="token-mark" size={48} /></div></div><div className="section-heading"><div><small className="eyebrow">AKSES CEPAT</small><h2>Layanan kesehatan</h2></div><button className="text-link" onClick={() => go('Fasilitas & jadwal')}>Semua layanan <ArrowRight size={12} /></button></div><div className="quick-grid">{[['Ambil antrean', 'Daftar poli online', Ticket, 'green', () => setModal('queue')], ['Rekam medis', 'Riwayat kesehatan', FileText, 'blue', () => go('Rekam medis')], ['Konsultasi online', 'Temui dokter virtual', Video, 'lilac', () => go('Konsultasi virtual')], ['Obat & apotek', 'Resep dan stok obat', Pill, 'orange', () => go('Obat & apotek')]].map(([title, subtitle, Icon, color, action]) => <button className="quick-tile" key={title} onClick={action}><span className={`tile-icon ${color}`}><Icon size={17} /></span><b>{title}</b><small>{subtitle}</small><ChevronRight size={13} /></button>)}</div><div className="section-heading section-gap"><div><small className="eyebrow">KAMIS, 15 OKTOBER</small><h2>Jadwal dokter hari ini</h2></div><button className="text-link" onClick={() => go('Fasilitas & jadwal')}>Lihat jadwal <ArrowRight size={12} /></button></div><div className="doctor-list">{doctors.slice(0, 3).map(([name, clinicName, time, status], index) => <div className="doctor-row" key={name}><span className={`doctor-avatar doctor-${index}`}>{name.split(' ').slice(1).map((part) => part[0]).join('').slice(0, 2)}</span><span className="doctor-name"><b>{name}</b><small>{clinicName}</small></span><span className="doctor-time"><Clock3 size={11} /> {time}</span><span className={`status ${status === 'Berpraktik' ? 'status-green' : ''}`}><i /> {status}</span></div>)}</div><div className="section-heading section-gap"><div><small className="eyebrow">PEMANTAUAN KESEHATAN</small><h2>Ringkasan kunjungan</h2></div><button className="text-link" onClick={() => go('Rekam medis')}>Buka rekam medis <ArrowRight size={12} /></button></div><button className="visit-summary" onClick={() => go('Rekam medis')}><span><FileText size={16} /></span><span><b>{data.visits[0].diagnosis}</b><small>{data.visits[0].date} · {data.visits[0].clinic}</small></span><i className="status status-green"><i /> Selesai</i><ChevronRight size={14} /></button></section><aside className="dashboard-rail"><div className="rail-panel"><div className="rail-heading"><b>Kartu pasien digital</b><button onClick={() => setModal('card')}>•••</button></div><PatientCard profile={profile} /><button className="card-detail" onClick={() => setModal('card')}>Lihat detail kartu <ArrowRight size={12} /></button></div><div className="subsidy-panel"><div><span><ShieldCheck size={14} /></span><b>Status layanan</b><i><Check size={9} /> Aktif</i></div><small>{profile.economy === 'subsidi' ? 'Subsidi penuh' : 'Layanan mandiri'}</small><strong>{profile.economy === 'subsidi' ? 'Bebas Biaya' : 'Pembayaran di loket'}</strong><hr /><small>{profile.economy === 'subsidi' ? 'Tidak ada iuran bulanan · Rp 0' : 'Estimasi sebelum layanan'}</small></div><div className="rail-panel med-panel"><div className="rail-heading"><span><small className="eyebrow">PENGINGAT OBAT</small><b>Jadwal hari ini</b></span><button onClick={() => go('Obat & apotek')}>Lihat</button></div>{[['12:30', 'Paracetamol 500 mg', true], ['20:00', 'Vitamin C 500 mg', false]].map(([time, name, done]) => <div className="med-time" key={time}><small>{time}</small><i className={done ? '' : 'pending'} /><span><b>{name}</b><small>1 tablet · sesudah makan</small></span>{done ? <CheckCircle2 size={15} /> : <button aria-label="Tandai diminum" onClick={() => toast(`${name} ditandai diminum.`)}><Check size={12} /></button>}</div>)}<button className={`alarm-button ${alarm ? 'alarm-on' : ''}`} onClick={() => { setAlarm(!alarm); toast(alarm ? 'Alarm dimatikan.' : 'Alarm minum obat diaktifkan di layar.') }}><Bell size={13} /> {alarm ? 'Alarm aktif' : 'Aktifkan alarm layar'}</button></div><button className="bed-mini" onClick={() => go('Fasilitas & jadwal')}><BedDouble size={16} /><span><b>Ketersediaan tempat tidur</b><small>IGD dan rawat inap · data demo</small></span><strong>4/12</strong></button></aside></div></>}
       {page === 'Antrean saya' && <QueuePage ticket={ticket} book={() => setModal('queue')} />}
       {page === 'Rekam medis' && <MedicalPage data={data} screening={screening} save={saveScreening} visits={visits} query={query} setQuery={setQuery} />}
       {page === 'Obat & apotek' && <PharmacyScreen toast={toast} openCard={() => setModal('card')} />}
@@ -202,9 +352,9 @@ function App() {
       {page === 'Analitik petugas' && role === 'admin' && <><AdminPage /><AdminOperations appointments={data.appointments} availability={data.availability} toggle={toggleAvailability} /></>}
     </main></div><footer className="mobile-nav">{nav.slice(0, 4).map(([label, Icon]) => <button key={label} className={activeNavLabel === label ? 'selected' : ''} onClick={() => activateNavItem(label)}><Icon size={17} /><span>{label === 'Dasbor & Ringkasan' ? 'Beranda' : label === 'Kartu Pasien Digital' ? 'Kartu' : label === 'Pendaftaran Antrean' ? 'Antrean' : label === 'Skrining & RME Pasien' ? 'Medis' : label}</span></button>)}</footer>
     {modal === 'queue' && <Modal title="Daftar antrean" close={() => setModal('')}><form className="form-stack" onSubmit={bookQueue}><label>Poli tujuan<select value={queueForm.clinic} onChange={(event) => setQueueForm({ ...queueForm, clinic: event.target.value })}>{clinics.map(([name]) => <option key={name}>{name}</option>)}</select></label><div className="unit-preview"><span><ClinicIcon size={16} /></span><span><b>{clinic[0]}</b><small>{clinic[2]}</small></span><CheckCircle2 size={15} /></div><fieldset className="day-choice"><legend>Hari kunjungan</legend>{[['today', 'Hari ini'], ['tomorrow', 'Besok']].map(([value, label]) => <label key={value} className={queueForm.day === value ? 'day-selected' : ''}><input type="radio" name="queueDay" value={value} checked={queueForm.day === value} onChange={() => { const firstDoctor = doctors.find(([name]) => data.availability[value]?.[name])?.[0] || ''; setQueueForm({ ...queueForm, day: value, doctor: firstDoctor }) }} /><CalendarDays size={15} /><span>{label}<small>{value === 'today' ? dateText() : 'Hari berikutnya'}</small></span></label>)}</fieldset><label>Tenaga medis<select value={availableDoctors.some(([name]) => name === queueForm.doctor) ? queueForm.doctor : ''} onChange={(event) => setQueueForm({ ...queueForm, doctor: event.target.value })} required disabled={!availableDoctors.length}><option value="">{availableDoctors.length ? 'Pilih dokter tersedia' : 'Belum ada dokter tersedia'}</option>{availableDoctors.map(([name, assignedClinic]) => <option key={name} value={name}>{name} · {assignedClinic}</option>)}</select></label><label>Jam kedatangan<input type="time" min="07:00" max="19:00" step="3600" value={queueForm.arrival} onChange={(event) => setQueueForm({ ...queueForm, arrival: event.target.value })} required /><small className="field-help">Jam layanan tersedia dari 07.00 sampai 19.00.</small></label><label>Keluhan awal<textarea rows="3" maxLength="300" value={queueForm.complaint} onChange={(event) => setQueueForm({ ...queueForm, complaint: event.target.value })} placeholder="Tuliskan keluhan yang ingin disampaikan ke tenaga medis" /></label><p className="form-note"><Clock3 size={13} /> Estimasi tunggu dihitung saat tiket diterbitkan.</p><button className="button primary full-button" disabled={!availableDoctors.length}><Ticket size={14} /> Terbitkan e-tiket</button></form></Modal>}
-    {modal === 'register' && <Modal title="Buat akun pasien" close={() => { setModal(''); setPinStatus('') }} wide><form className="form-stack" onSubmit={register}><div className="form-grid"><label>Nama lengkap<input name="name" required /></label><label>Nomor telepon<input name="phone" required inputMode="tel" placeholder="08xxxxxxxxxx" /></label><label className="span-two">Alamat<input name="address" required /></label><label>Tanggal lahir<input name="birthDate" type="date" required /></label><label>Jenis kelamin<select name="gender" required><option value="">Pilih</option><option>Perempuan</option><option>Laki-laki</option></select></label><label>Golongan darah<select name="blood" required><option value="">Pilih</option>{['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Tidak tahu'].map((value) => <option key={value}>{value}</option>)}</select></label><label>Kontak darurat<input name="emergency" required inputMode="tel" /></label></div><fieldset className="economy-choice"><legend>Pilih skema layanan</legend><label><input type="radio" name="economy" value="subsidi" defaultChecked /><span><b>Subsidi penuh</b><small>Dukungan layanan tanpa iuran bulanan, biaya berobat Rp 0.</small></span><i /></label><label><input type="radio" name="economy" value="mandiri" /><span><b>Layanan mandiri / reguler</b><small>Pembayaran transparan langsung di loket saat menerima layanan.</small></span><i /></label></fieldset><div className="pin-fields"><PinField label="PIN keamanan (8 angka)" name="pin" visible={showPin} toggle={() => setShowPin(!showPin)} /><PinField label="Ulangi PIN keamanan" name="pinConfirmation" visible={showPin} toggle={() => setShowPin(!showPin)} /></div>{pinStatus && <p className="form-error">{pinStatus}</p>}<button className="button primary full-button">Buat akun & kartu pasien <ArrowRight size={14} /></button><p className="privacy-note"><LockKeyhole size={12} /> Tidak meminta NIK. Data demo hanya disimpan pada browser perangkat ini.</p></form></Modal>}
-    {modal === 'login' && <Modal title="Masuk ke akun" close={() => { setModal(''); setAuthError('') }}><form className="form-stack" onSubmit={login}><label>Jenis akun<select value={authRole} onChange={(event) => { setAuthRole(event.target.value); setAuthError('') }}><option value="patient">Pasien</option><option value="doctor">Dokter</option><option value="admin">Admin Puskesmas</option></select></label><p className="muted">{authRole === 'patient' ? 'Gunakan nomor telepon atau nomor peserta.' : 'Gunakan kredensial demo petugas.'}</p><label>{authRole === 'patient' ? 'Nomor telepon / nomor peserta' : 'Email akun'}<input name="identifier" required placeholder={authRole === 'patient' ? '0812… atau 00020268492' : authRole === 'admin' ? 'admin@puskesmas.local' : 'dokter@puskesmas.local'} /></label><label>{authRole === 'patient' && authMode === 'key' ? 'Kunci unik pasien' : 'PIN keamanan'}<span className="login-pin"><input aria-label={authRole === 'patient' && authMode === 'key' ? 'Kunci unik pasien' : 'PIN keamanan'} name="secret" type={authMode === 'key' && authRole === 'patient' ? 'text' : showPin ? 'text' : 'password'} required inputMode="numeric" /><button type="button" onClick={() => setShowPin(!showPin)} aria-label={showPin ? 'Sembunyikan PIN' : 'Tampilkan PIN'}>{showPin ? <EyeOff size={15} /> : <Eye size={15} />}</button></span></label>{authError && <p className="form-error">{authError}</p>}<button className="button primary full-button">Masuk <ArrowRight size={14} /></button>{authRole === 'patient' && <button type="button" className="text-link centered" onClick={() => { setAuthMode(authMode === 'key' ? 'pin' : 'key'); setAuthError('') }}>{authMode === 'key' ? 'Kembali masuk dengan PIN' : 'Lupa PIN? Gunakan kunci unik'}</button>}<small className="demo-hint">{authRole === 'patient' ? `Akun demo: ${profile.phone} · PIN 12345678` : authRole === 'admin' ? 'Demo admin: admin@puskesmas.local · PIN 87654321' : 'Demo dokter: dokter@puskesmas.local · PIN 24681357'}</small></form></Modal>}
-    {modal === 'account' && <Modal title="Pengaturan akun" close={() => { setModal(''); setPinStatus('') }}><div className="account-summary"><span className="avatar large">{profile.name[0]}</span><span><b>{profile.name}</b><small>Peserta {profile.memberId}</small></span></div><div className="account-data"><small>Nomor telepon</small><b>{profile.phone}</b><small>Kunci unik pasien</small><b>{profile.uniqueKey}</b><small>Skema layanan</small><b>{profile.economy === 'subsidi' ? 'Subsidi penuh · Rp 0' : 'Mandiri / reguler'}</b></div><form className="form-stack pin-form" onSubmit={changePin}><h3>Ubah PIN keamanan</h3><PinField label="PIN saat ini" name="current" visible={showPin} toggle={() => setShowPin(!showPin)} /><PinField label="PIN baru (8 angka)" name="next" visible={showPin} toggle={() => setShowPin(!showPin)} /><PinField label="Ulangi PIN baru" name="confirmation" visible={showPin} toggle={() => setShowPin(!showPin)} />{pinStatus && <p className={pinStatus.startsWith('PIN berhasil') ? 'form-success' : 'form-error'}>{pinStatus}</p>}<button className="button secondary-button full-button">Perbarui PIN</button></form><button className="logout-button" onClick={() => setModal('register')}>Buat akun pasien baru</button><button className="logout-button" onClick={() => { setAuthRole('patient'); setAuthMode('pin'); setModal('login') }}>Simulasi keluar / masuk</button><p className="privacy-note"><ShieldCheck size={12} /> Data browser hanya prototipe demo, bukan layanan produksi yang aman.</p></Modal>}
+    {modal === 'register' && <Modal title="Buat akun pasien" close={() => { setModal(''); setPinStatus('') }} wide><RegisterForm showPin={showPin} setShowPin={setShowPin} pinStatus={pinStatus} onSubmit={register} /></Modal>}
+    {modal === 'login' && <Modal title="Masuk ke akun" close={() => { setModal(''); setAuthError('') }}><LoginForm authRole={authRole} setAuthRole={setAuthRole} authMode={authMode} setAuthMode={setAuthMode} showPin={showPin} setShowPin={setShowPin} authError={authError} onSubmit={login} showRoleSelect /></Modal>}
+    {modal === 'account' && <Modal title="Pengaturan akun" close={() => { setModal(''); setPinStatus('') }}><div className="account-summary"><span className="avatar large">{profile.name[0]}</span><span><b>{profile.name}</b><small>Peserta {profile.memberId}</small></span></div><div className="account-data"><small>Nomor telepon</small><b>{profile.phone}</b><small>Kunci unik pasien</small><b>{profile.uniqueKey}</b><small>Skema layanan</small><b>{profile.economy === 'subsidi' ? 'Subsidi penuh · Rp 0' : 'Mandiri / reguler'}</b></div><form className="form-stack pin-form" onSubmit={changePin}><h3>Ubah PIN keamanan</h3><PinField label="PIN saat ini" name="current" visible={showPin} toggle={() => setShowPin(!showPin)} /><PinField label="PIN baru (8 angka)" name="next" visible={showPin} toggle={() => setShowPin(!showPin)} /><PinField label="Ulangi PIN baru" name="confirmation" visible={showPin} toggle={() => setShowPin(!showPin)} />{pinStatus && <p className={pinStatus.startsWith('PIN berhasil') ? 'form-success' : 'form-error'}>{pinStatus}</p>}<button className="button secondary-button full-button">Perbarui PIN</button></form><button className="logout-button" onClick={() => signOut('register')}>Buat akun pasien baru</button><button className="logout-button" onClick={() => signOut()}>Keluar</button><p className="privacy-note"><ShieldCheck size={12} /> Data browser hanya prototipe demo, bukan autentikasi produksi.</p></Modal>}
     {modal === 'card' && <Modal title="Kartu pasien digital" close={() => setModal('')}><PatientCard profile={profile} /><div className="card-details"><small>Nomor peserta</small><b>{profile.memberId}</b><small>Kunci unik pasien</small><b>{profile.uniqueKey}</b><small>Alamat</small><b>{profile.address}</b><small>Status layanan</small><b>{profile.economy === 'subsidi' ? 'Subsidi penuh · Bebas biaya (Rp 0)' : 'Mandiri · Pembayaran di loket'}</b></div></Modal>}
     {modal === 'emergency' && <Modal title="Bantuan gawat darurat" close={() => setModal('')}><div className="emergency-modal"><span><Siren size={24} /></span><h3>Butuh bantuan segera?</h3><p>Untuk kondisi yang mengancam nyawa, hubungi layanan darurat nasional 119 atau minta bantuan petugas Puskesmas.</p><a className="button danger-button full-button" href="tel:119"><Siren size={15} /> Hubungi 119 sekarang</a><button className="button secondary-button full-button" onClick={() => setModal('referral')}><Hospital size={15} /> Rujukan rumah sakit</button><small>Jangan gunakan untuk konsultasi rutin.</small></div></Modal>}
     {modal === 'referral' && <Modal title="Rujukan rumah sakit Depok" close={() => setModal('')}><form className="form-stack" onSubmit={(event) => { event.preventDefault(); toast(`Surat rujukan demo diterbitkan ke ${referral}.`); setModal('') }}><p className="muted">Penentuan rujukan klinis sebenarnya dilakukan tenaga medis.</p><label>Rumah sakit rujukan<select required value={referral} onChange={(event) => setReferral(event.target.value)}><option value="">Pilih rumah sakit</option>{hospitals.map((name) => <option key={name}>{name}</option>)}</select></label><label>Catatan kondisi<textarea rows="3" required placeholder="Ringkas kondisi (data demo)" /></label><button className="button primary full-button"><FileText size={14} /> Terbitkan surat rujukan</button></form></Modal>}
@@ -215,13 +365,14 @@ function App() {
 
 function PatientDashboard({ profile, ticket, availability, openCard, openQueue, openConsult, go }) {
   const activeDoctors = doctors.filter(([name]) => availability.today?.[name]).slice(0, 4)
-  return <div className="patient-dashboard"><section className="patient-hero"><div className="accreditation"><CheckCircle2 size={11} /> Puskesmas Terakreditasi Paripurna Kota Depok</div><h1>Selamat Pagi, Ibu {profile.name}</h1><p>Akses cepat pelayanan kesehatan gratis bersubsidi penuh warga Depok. Ambil nomor antrean, pantau obat berkala, atau konsultasi telemedisin langsung dengan dokter umum.</p><div className="patient-hero-actions"><button className="button patient-hero-light" onClick={openQueue}><Ticket size={14} /> Ambil Antrean Poli Hari Ini</button><button className="button patient-hero-green" onClick={openConsult}><Video size={14} /> Konsultasi Dokter Virtual</button></div><ShieldCheck className="patient-hero-watermark" size={120} /></section>
+  const title = `Selamat ${greeting()}${honorific(profile.gender) ? `, ${honorific(profile.gender)}` : ''} ${profile.name}`
+  return <div className="patient-dashboard"><section className="patient-hero"><div className="accreditation"><CheckCircle2 size={11} /> Puskesmas Terakreditasi Paripurna Kota Depok</div><h1>{title}</h1><p>Akses cepat pelayanan kesehatan gratis bersubsidi penuh warga Depok. Ambil nomor antrean, pantau obat berkala, atau konsultasi telemedisin langsung dengan dokter umum.</p><div className="patient-hero-actions"><button className="button patient-hero-light" onClick={openQueue}><Ticket size={14} /> Ambil Antrean Poli Hari Ini</button><button className="button patient-hero-green" onClick={openConsult}><Video size={14} /> Konsultasi Dokter Virtual</button></div><ShieldCheck className="patient-hero-watermark" size={120} /></section>
     <section className="patient-metrics"><button className="patient-metric queue-metric" onClick={() => go('Antrean saya')}><span className="metric-title">ANTREAN POLI AKTIF <span><Clock3 size={14} /></span></span><b>{ticket.clinic}</b><strong>{ticket.number}</strong><span className="metric-chip">Sisa {ticket.ahead} Pasien</span><small>Estimasi dipanggil: {ticket.arrival} WIB (±{ticket.wait} menit)</small></button><button className="patient-metric medicine-metric" onClick={() => go('Obat & apotek')}><span className="metric-title">JADWAL MINUM OBAT <span><Pill size={14} /></span></span><b>3 Dosis Tersisa</b><strong>12:30 <i>Siang Ini</i></strong><small>Paracetamol & Vitamin B-Complex</small></button><button className="patient-metric vital-metric" onClick={() => go('Rekam medis')}><span className="metric-title">TANDA VITAL TERAKHIR <span><Activity size={14} /></span></span><b>Tekanan Darah</b><strong>118/78 <i>Normal</i></strong><small>Diperiksa: 18 Mei 2025 di UPTD Beji</small></button><button className="patient-metric bed-metric" onClick={() => go('Fasilitas & jadwal')}><span className="metric-title">BED IGD SIAGA <span><BedDouble size={14} /></span></span><b>Tersedia</b><strong>4 / 6 <i>IGD 24 Jam</i></strong><small>Siaga Ambulans Rujukan 119 Ready</small></button></section>
     <section className="patient-home-bottom"><article className="patient-digital-panel"><header><span><CreditCard size={14} /> Kartu Pasien Digital</span><button onClick={openCard}>Buka Penuh <ArrowRight size={12} /></button></header><PatientCard profile={profile} /><div className="facility-validity"><span>Fasilitas Terdaftar: <b>UPTD Puskesmas Beji</b></span><strong>Aktif Valid 2026</strong></div></article><article className="doctors-today-panel"><header><span><Hospital size={15} /> Dokter Jaga & Poli Beroperasi Hari Ini</span><small>Pembaruan: 10 menit lalu</small></header><div className="today-doctor-list">{activeDoctors.map(([name, clinicName, time], index) => <button className="today-doctor-row" key={name} onClick={openQueue}><span className={`clinic-monogram clinic-${index}`}>{clinicName.startsWith('Poli Umum') ? 'PU' : clinicName.startsWith('Poli KIA') ? 'KIA' : clinicName.includes('Gigi') ? 'PG' : 'PL'}</span><span><b>{clinicName} ({name})</b><small>{time} WIB · Ruang {102 + index}</small></span><i>{index === 2 ? 'Tersisa 3 Kuota' : `Buka (${26 - index * 6} Pasien)`}</i></button>)}</div><footer><span>Total 8 Poliklinik Layanan Siaga Aktif</span><button onClick={() => go('Fasilitas & jadwal')}>Daftar Sekarang <ArrowRight size={12} /></button></footer></article></section>
   </div>
 }
 
-function PageTitle({ eyebrow, title, detail, action }) { return <div className="page-title"><div><small className="eyebrow">{eyebrow}</small><h1>{title}</h1><p>{detail}</p></div>{action}</div> }
+function PageTitle({ eyebrow, title, detail, action }) { const displayDetail = detail.startsWith('Selamat bertugas,') ? detail.replace('Selamat bertugas,', `Selamat ${greeting()},`) : detail; return <div className="page-title"><div><small className="eyebrow">{eyebrow}</small><h1>{title}</h1><p>{displayDetail}</p></div>{action}</div> }
 function QueuePage({ ticket, book }) {
   return <><PageTitle eyebrow="ANTREAN ONLINE" title="Antrean saya" detail="Pantau giliran tanpa menunggu di ruang pendaftaran." action={<button className="button primary" onClick={book}><Plus size={14} /> Ambil antrean</button>} /><div className="queue-page-grid"><section className="panel"><div className="panel-heading"><span><small className="live-label"><i /> SEDANG AKTIF</small><h2>{ticket.clinic}</h2><p>{ticket.unit}</p></span><Ticket size={19} /></div><div className="ticket-number"><small>Nomor antrean Anda</small><b>{ticket.number}</b><div><i /></div><span>Anda terdaftar <small>Estimasi {ticket.wait} menit</small></span></div><div className="ticket-stats"><span><small>Pasien di depan</small><b>{ticket.ahead} orang</b></span><span><small>Waktu kedatangan</small><b>{ticket.day === 'tomorrow' ? 'Besok' : 'Hari ini'} · {ticket.arrival}</b></span></div><div className="ticket-appointment"><b>{ticket.doctor}</b><span>{ticket.complaint || 'Tidak ada catatan keluhan'}</span></div><button className="button secondary-button" onClick={() => window.print()}><FileText size={14} /> Cetak e-tiket</button></section><section className="panel"><div className="panel-heading"><span><h2>Alur kunjungan</h2><p>Langkah setelah mendaftar.</p></span></div>{['Tunjukkan e-tiket ke petugas', 'Lakukan skrining kesehatan', 'Tunggu nomor dipanggil di poli', 'Siapkan kartu pasien digital'].map((item, index) => <div className="step-row" key={item}><i>{index + 1}</i><span>{item}</span></div>)}<p className="form-note"><Clock3 size={13} /> Datang 10 menit sebelum waktu pilihan.</p></section></div><section className="panel"><div className="panel-heading"><span><h2>Urutan poli layanan</h2><p>Pilih antrean sesuai kebutuhan pemeriksaan.</p></span></div><div className="clinic-grid">{clinics.map(([name, Icon], index) => <div className="clinic-choice" key={name}><Icon size={15} /><span>{name}</span>{index === 0 && <small>Utama</small>}</div>)}</div></section></>
 }

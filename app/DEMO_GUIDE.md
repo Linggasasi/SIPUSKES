@@ -1,6 +1,6 @@
 # SIPUSKES Depok Demo
 
-Aplikasi React + Vite dengan Tailwind CSS v4, Lucide React, Jitsi Meet External API, dan mock state browser. UI demo masih berjalan tanpa backend; database PostgreSQL tersedia terpisah dan belum terhubung ke halaman web.
+Aplikasi React + Vite dengan Tailwind CSS v4, Lucide React, Jitsi Meet External API, dan mock state browser. Saat dibuka, aplikasi menampilkan landing masuk/daftar; database PostgreSQL tersedia terpisah dan belum terhubung ke halaman web.
 
 ## Menjalankan
 
@@ -23,7 +23,9 @@ Scaffold baru dengan `npm create vite@latest sipuskes -- --template react`, lalu
 - Admin: `admin@puskesmas.local` · PIN `87654321`
 - Dokter: `dokter@puskesmas.local` · PIN `24681357`
 
-Menu profil kanan atas membuka pengaturan, ubah PIN, login berdasarkan peran, dan pendaftaran pasien baru. PIN pasien harus tepat 8 angka dan dikonfirmasi ulang. Pendaftaran menghasilkan nomor peserta numerik serta kunci unik. NIK tidak diminta maupun disimpan.
+Landing menyediakan tab **Masuk Pasien**, **Masuk Petugas**, dan **Daftar Akun Baru**. PIN pasien harus tepat 8 angka dan dikonfirmasi ulang. Pendaftaran menghasilkan nomor peserta numerik serta kunci unik; nomor telepon yang sudah dipakai ditolak. NIK tidak diminta maupun disimpan. Setelah login, menu profil/pengaturan menyediakan tombol keluar.
+
+Data akun disimpan terpisah per nomor peserta pada localStorage key `sipuskes-demo-v2`. Data format lama `sipuskes-demo-v1` dimigrasikan sebagai akun, tetapi pengguna harus login kembali setelah migrasi. Akun Siti Nurbaya adalah akun demo pasien, bukan sesi aktif otomatis.
 
 Setelah login, pasien masuk ke beranda layanan; admin masuk ke **Dasbor Admin** dengan menu operasional dan analitik; dokter masuk ke **Dasbor Dokter** dengan agenda, antrean pasien, dan konsultasi virtual. Profil staf hanya menampilkan sesi staf serta tombol keluar.
 
@@ -40,6 +42,6 @@ Setelah login, pasien masuk ke beranda layanan; admin masuk ke **Dasbor Admin** 
 
 ## Batasan Demo
 
-Jadwal, stok, antrean, kapasitas, dan analitik adalah data simulasi. Permintaan konsultasi memakai `localStorage` untuk demo pada browser/perangkat yang sama; perangkat pasien dan dokter yang berbeda tidak tersinkron tanpa backend bersama. Data tidak aman. Hash PIN hanya mendemokan alur, bukan autentikasi produksi. Jangan masukkan data pasien nyata. Jitsi menggunakan layanan publik dan bukan pengganti layanan gawat darurat.
+Jadwal, stok, antrean, kapasitas, dan analitik adalah data simulasi. Akun, tiket, rekam medis, skrining, dan konsultasi tersimpan di `localStorage` pada browser/perangkat yang sama; perangkat pasien dan dokter berbeda tidak tersinkron tanpa backend bersama. Data tidak aman. Hash PIN SHA-256 tanpa salt hanya mendemokan alur, bukan autentikasi produksi. Jangan masukkan data pasien nyata. Jitsi menggunakan layanan publik dan bukan pengganti layanan gawat darurat.
 
 Verifikasi: `npm run build` dan `npm run lint`.
