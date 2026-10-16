@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sipuskes}
+      POSTGRES_USER: ${POSTGRES_USER:-sipuskes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sipuskes_dev}
+    ports:
+      - "5433:5432"
+    volumes:
+      - sipuskes_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sipuskes} -d ${POSTGRES_DB:-sipuskes}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sipuskes_postgres_data:
