@@ -115,7 +115,10 @@
 .referral-hospital-card footer > button { padding: 3px 0; display: inline-flex; align-items: center; gap: 3px; border: 0; color: #16815e; background: transparent; font-size: max(calc(7px * var(--ui-font-scale)), 11px); font-weight: 700; white-space: nowrap; }
 .referral-hospital-card footer > button:hover { color: #075d46; }
 .hospital-empty { grid-column: 1 / -1; padding: 26px; text-align: center; color: #8190a4; font-size: max(calc(9px * var(--ui-font-scale)), 11px); }
-
+.role-patient .brand-logo { position: relative; }
+.role-patient .brand-logo svg { opacity: 0; }
+.role-patient .brand-logo::before { content: ''; position: absolute; width: 13px; height: 13px; border: 1.5px solid #fff; border-radius: 2px; }
+.role-patient .brand-logo::after { content: '+'; position: absolute; color: #fff; font-size: max(calc(15px * var(--ui-font-scale)), 11px); font-weight: 800; line-height: 1; }
 
 @media (max-width: 900px) {
   .bed-capacity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

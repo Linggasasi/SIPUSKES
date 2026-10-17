@@ -1,16 +1,17 @@
 # SIPUSKES Depok Demo
 
-Aplikasi React + Vite dengan Tailwind CSS v4, Lucide React, Jitsi Meet External API, dan mock state browser. Saat dibuka, aplikasi menampilkan landing masuk/daftar; database PostgreSQL tersedia terpisah dan belum terhubung ke halaman web.
+Aplikasi React + Vite dengan Tailwind CSS v4, Lucide React, Jitsi Meet External API, backend Node.js, PostgreSQL, dan WebSocket. Saat dibuka, aplikasi menampilkan landing masuk/daftar.
 
 ## Menjalankan
 
 ```sh
 cd app
 npm install
-npm run dev
+npm run db:init
+npm run dev:full
 ```
 
-Buka URL yang ditampilkan Vite, biasanya `http://localhost:5173`.
+Buka URL yang ditampilkan Vite, biasanya `http://localhost:5173`. PostgreSQL harus berjalan dan `.env` harus berisi `DATABASE_URL` yang valid.
 
 Scaffold baru dengan `npm create vite@latest sipuskes -- --template react`, lalu jalankan `npm install lucide-react tailwindcss @tailwindcss/vite`. Tailwind v4 diaktifkan melalui plugin `@tailwindcss/vite` di `vite.config.js` dan `@import "tailwindcss"` di `src/index.css`.
 
@@ -34,7 +35,7 @@ Setelah login, pasien masuk ke beranda layanan; admin masuk ke **Dasbor Admin** 
 - **Antrean:** daftar untuk hari ini atau besok, pilih poli, tenaga medis yang tersedia, jam 07.00–19.00, dan tulis keluhan. Tiket memuat dokter, keluhan, jumlah pasien di depan, serta estimasi tunggu.
 - **Rekam medis:** riwayat kunjungan, hasil lab dummy, dan skrining digital yang tersimpan lokal.
 - **Obat & apotek:** stok dummy, resep, aturan minum sebelum/sesudah makan, dan simulasi alarm/notifikasi.
-- **Konsultasi virtual:** pasien memulai permintaan dari halaman pasien; permintaan dan keluhan muncul di inbox dokter. Tombol **Terima & hubungi** membuka room Jitsi yang sama pada sisi dokter. Jitsi Meet External API disematkan dalam modal; internet dan akses `meet.jit.si` diperlukan.
+- **Konsultasi virtual:** pasien membuat permintaan melalui API; record disimpan di PostgreSQL sebelum notifikasi dikirim. WebSocket merutekan permintaan ke akun dokter yang dipilih (relasi `users`/`staff`), bukan ke seluruh koneksi dokter. Inbox dokter memuat ulang daftar saat WebSocket tersambung kembali. Tombol **Terima & hubungi** hanya dapat menerima permintaan yang ditujukan ke dokter tersebut, memperbarui status di PostgreSQL, lalu membuka room Jitsi yang sama pada sisi pasien/dokter. Internet dan akses `meet.jit.si` diperlukan.
 - **Fasilitas & jadwal:** jadwal dokter/tindakan serta kapasitas bed rawat inap dan IGD.
 - **Admin:** analitik hanya muncul setelah login admin; admin dapat mengubah ketersediaan dokter hari ini/besok dan melihat tiket antrean beserta keluhan pasien.
 - **Dasbor dokter:** menampilkan jadwal praktik, ringkasan antrean, pasien berikutnya, dan pintasan konsultasi. Daftar pasien tersedia di menu **Antrean dokter**.
@@ -42,6 +43,6 @@ Setelah login, pasien masuk ke beranda layanan; admin masuk ke **Dasbor Admin** 
 
 ## Batasan Demo
 
-Jadwal, stok, antrean, kapasitas, dan analitik adalah data simulasi. Akun, tiket, rekam medis, skrining, dan konsultasi tersimpan di `localStorage` pada browser/perangkat yang sama; perangkat pasien dan dokter berbeda tidak tersinkron tanpa backend bersama. Data tidak aman. Hash PIN SHA-256 tanpa salt hanya mendemokan alur, bukan autentikasi produksi. Jangan masukkan data pasien nyata. Jitsi menggunakan layanan publik dan bukan pengganti layanan gawat darurat.
+Jadwal, stok, kapasitas, dan analitik adalah data simulasi. Akun, tiket, rekam medis, dan skrining disimpan di `localStorage`; permintaan konsultasi tersimpan di PostgreSQL. Routing dokter memvalidasi email dokter terhadap database, tetapi identitas login UI masih demo sisi klien dan email WebSocket/API bukan bukti autentikasi. Sebelum produksi, tambahkan autentikasi server (misalnya sesi/JWT yang aman), otorisasi berbasis identitas terverifikasi, HTTPS/WSS, pembatasan akses data pasien, audit, dan validasi privasi. Hash PIN SHA-256 tanpa salt dan `localStorage` tidak aman untuk data pasien nyata. Jitsi menggunakan layanan publik dan bukan pengganti layanan gawat darurat.
 
 Verifikasi: `npm run build` dan `npm run lint`.

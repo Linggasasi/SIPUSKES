@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:full": "node server/dev.js",
+    "server": "node server/index.js",
     "build": "vite build",
     "lint": "oxlint",
     "db:init": "node database/init.js",
@@ -17,7 +19,8 @@
     "pg": "^8.23.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",
