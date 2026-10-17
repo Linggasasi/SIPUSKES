@@ -1,0 +1,145 @@
+.service-page { display: flex; flex-direction: column; gap: 16px; color: #1d2738; }
+.service-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 1px; }
+.service-heading > div { min-width: 0; }
+.service-heading > div > small { display: block; margin: 0 0 5px; color: #8993a2; font-size: max(calc(8px * var(--ui-font-scale)), 11px); font-weight: 800; letter-spacing: .1em; }
+.service-heading h1 { margin: 0; color: #192438; font-size: max(calc(21px * var(--ui-font-scale)), 11px); line-height: 1.3; }
+.service-heading h1 { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; letter-spacing: 0; }
+.service-heading p { margin: 4px 0 0; color: #78869a; font-size: max(calc(9px * var(--ui-font-scale)), 11px); line-height: 1.5; }
+.alarm-test-button { min-height: 35px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex: none; padding: 0 12px; border: 1px solid #0870a9; border-radius: 6px; background: #0876ad; color: #fff; font-size: max(calc(9px * var(--ui-font-scale)), 11px); font-weight: 700; }
+.alarm-test-button:hover { background: #056495; }
+.alarm-test-button.is-on { background: #075d46; border-color: #075d46; }
+.prescription-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.prescription-card { min-width: 0; min-height: 211px; padding: 14px; display: flex; flex-direction: column; border: 1px solid #e4e7ef; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px #1e293b08; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.prescription-card:hover { border-color: #b7dbc8; box-shadow: 0 6px 18px #1a483414; transform: translateY(-1px); }
+.prescription-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #16815e; }
+.prescription-card-heading > svg { flex: none; }
+.prescription-active { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 3px 7px; border: 1px solid #a8ebd1; border-radius: 999px; color: #168565; background: #effdf7; font-size: max(calc(7px * var(--ui-font-scale)), 11px); font-weight: 700; }
+.prescription-active i, .facility-live i, .referral-hospital-card footer > span i { width: 5px; height: 5px; border-radius: 50%; background: #20a577; }
+.prescription-card h2 { margin: 9px 0 3px; color: #202b40; font-size: max(calc(15px * var(--ui-font-scale)), 11px); line-height: 1.3; }
+.prescription-card h2, .doctor-schedule-heading h2, .referral-hospital-card h2 { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; letter-spacing: 0; }
+.prescription-subtitle { min-height: 15px; color: #8793a4; font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+.prescription-instructions { margin-top: 10px; padding: 8px 9px; display: grid; grid-template-columns: minmax(65px, .7fr) minmax(0, 1.3fr); align-items: center; gap: 7px 8px; border-radius: 6px; background: #f2f3fc; }
+.prescription-instructions > span { color: #8190a5; font-size: max(calc(7px * var(--ui-font-scale)), 11px); }
+.prescription-instructions > b { color: #354157; font-size: max(calc(7px * var(--ui-font-scale)), 11px); text-align: right; }
+.prescription-instructions .before-meal, .prescription-instructions .after-meal { width: fit-content; justify-self: end; padding: 3px 6px; border-radius: 999px; color: #16805d; background: #ddf6e9; }
+.prescription-instructions .before-meal { color: #a05c12; background: #fff0d9; }
+.prescription-instructions .prescription-hours { font: 700 max(calc(7px * var(--ui-font-scale)), 11px) 'DM Mono', monospace; white-space: nowrap; }
+.prescription-detail { margin: 8px 1px 0; color: #64748b; font-size: max(calc(8px * var(--ui-font-scale)), 11px); line-height: 1.5; }
+.prescription-card-footer { min-height: 31px; margin-top: auto; padding-top: 7px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; border-top: 1px solid #edf0f4; color: #94a0ae; font-size: max(calc(7px * var(--ui-font-scale)), 11px); }
+.dose-state { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; border: 0; color: #16815e; background: transparent; font-size: max(calc(8px * var(--ui-font-scale)), 11px); font-weight: 700; white-space: nowrap; }
+.prescription-taken .dose-state { color: #8a95a2; }
+.prescription-taken .prescription-active { color: #657387; border-color: #dce3eb; background: #f5f7fa; }
+.prescription-detail-toggle { margin: 6px 0 -5px; padding: 4px 0 0; display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; border: 0; color: #637286; background: transparent; font-size: max(calc(7px * var(--ui-font-scale)), 11px); }
+.prescription-detail-toggle svg { transition: transform .15s; }
+.prescription-detail-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
+.pharmacy-pickup { min-height: 66px; padding: 11px 13px; display: flex; align-items: center; gap: 12px; border: 1px solid #e4e7ef; border-radius: 8px; background: #fff; }
+.pickup-icon { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 8px; color: #16815e; background: #ddf7e9; }
+.pharmacy-pickup > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.pharmacy-pickup > div > b { color: #2a3549; font-size: max(calc(9px * var(--ui-font-scale)), 11px); }
+.pharmacy-pickup > div > small { color: #8190a4; font-size: max(calc(7px * var(--ui-font-scale)), 11px); }
+.pharmacy-pickup > div > small strong { color: #66758b; font-family: 'DM Mono', monospace; }
+.pharmacy-pickup > button { min-height: 29px; padding: 0 9px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #8ee4bf; border-radius: 5px; color: #16815e; background: #f8fffb; font-size: max(calc(7px * var(--ui-font-scale)), 11px); font-weight: 700; white-space: nowrap; }
+.pharmacy-pickup > button:hover { background: #e9fbf1; }
+.alarm-status { display: flex; align-items: center; gap: 6px; color: #16815e; font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+
+.facility-live { display: inline-flex; align-items: center; gap: 6px; flex: none; color: #188260; font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+.bed-capacity-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
+.bed-capacity-card { min-width: 0; min-height: 137px; padding: 13px; display: flex; flex-direction: column; align-items: stretch; text-align: left; border: 1px solid #e3e7ef; border-radius: 8px; background: #fff; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.bed-capacity-card:hover, .bed-capacity-card.selected { border-color: #8fd4b2; box-shadow: 0 5px 16px #184a3412; transform: translateY(-1px); }
+.bed-card-label { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: #8995a5; font-size: max(calc(7px * var(--ui-font-scale)), 11px); font-weight: 800; letter-spacing: .04em; }
+.bed-card-label svg { flex: none; color: #138363; }
+.bed-capacity-card.red .bed-card-label svg { color: #d51f3c; }
+.bed-capacity-card.amber .bed-card-label svg { color: #cb8a1b; }
+.bed-capacity-card.violet .bed-card-label svg { color: #8050d8; }
+.bed-capacity-card > strong { margin: 10px 0 8px; color: #202a3d; font: 700 max(calc(27px * var(--ui-font-scale)), 11px) 'DM Mono', monospace; white-space: nowrap; }
+.bed-capacity-card > strong small { color: #94a1b4; font: 400 max(calc(10px * var(--ui-font-scale)), 11px) 'Plus Jakarta Sans', sans-serif; }
+.bed-capacity-track { height: 6px; overflow: hidden; border-radius: 99px; background: #edf0f5; }
+.bed-capacity-track i { height: 100%; display: block; border-radius: inherit; background: #10b981; }
+.bed-capacity-card.red .bed-capacity-track i { background: #9eaabc; }
+.bed-capacity-card.amber .bed-capacity-track i { background: #f2a317; }
+.bed-capacity-card.violet .bed-capacity-track i { background: #8251d8; }
+.bed-card-note { margin-top: 7px; color: #21805e; font-size: max(calc(7px * var(--ui-font-scale)), 11px); line-height: 1.4; }
+.bed-capacity-card.amber .bed-card-note { color: #b76816; }
+.selected-room-note, .doctor-selected-note { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid #ccebd9; border-radius: 6px; color: #386654; background: #f3fbf6; font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+.selected-room-note > svg, .doctor-selected-note > svg { flex: none; color: #16815e; }
+.selected-room-note > span { flex: 1; }
+.selected-room-note > button { border: 0; color: #567365; background: transparent; font-size: max(calc(16px * var(--ui-font-scale)), 11px); }
+.doctor-schedule-panel { overflow: hidden; border: 1px solid #e3e7ef; border-radius: 8px; background: #fff; }
+.doctor-schedule-heading { min-height: 44px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid #e7eaf1; }
+.doctor-schedule-heading > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 1; }
+.doctor-schedule-heading h2 { margin: 0; color: #243146; font-size: max(calc(11px * var(--ui-font-scale)), 11px); }
+.doctor-schedule-heading small { color: #96a1b1; font-size: max(calc(7px * var(--ui-font-scale)), 11px); white-space: nowrap; }
+.schedule-toggle { display: flex; gap: 2px; padding: 3px; border: 1px solid #e5e8ef; border-radius: 6px; background: #f7f8fb; }
+.schedule-toggle button { min-height: 22px; padding: 0 7px; border: 0; border-radius: 4px; color: #718096; background: transparent; font-size: max(calc(7px * var(--ui-font-scale)), 11px); font-weight: 700; }
+.schedule-toggle button.active { color: #fff; background: #087b5a; }
+.service-table-scroll { overflow-x: auto; }
+.service-table { min-width: 680px; width: 100%; border-collapse: collapse; text-align: left; }
+.service-table th { padding: 10px 12px; color: #647086; background: #f1f2fb; font-size: max(calc(7px * var(--ui-font-scale)), 11px); white-space: nowrap; }
+.service-table td { padding: 9px 12px; border-bottom: 1px solid #f0f2f6; color: #66738a; font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+.service-table tbody tr { cursor: pointer; }
+.service-table tbody tr:hover, .service-table tbody tr.selected { background: #f8fcf9; }
+.service-table td:first-child { color: #263247; font-weight: 700; }
+.doctor-name-button { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 700; text-align: left; }
+.doctor-duty-status { display: inline-flex; padding: 3px 7px; border-radius: 999px; color: #7d899b; background: #f0f2f5; font-size: max(calc(7px * var(--ui-font-scale)), 11px); white-space: nowrap; }
+.doctor-duty-status.on-duty { color: #16805e; background: #e5f8ee; }
+.doctor-selected-note { margin: 10px; }
+.doctor-selected-note span { color: #748297; }
+
+.referral-emergency-banner { min-height: 82px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; border-radius: 9px; color: #fff; background: linear-gradient(105deg, #e9282e, #c81038); box-shadow: 0 3px 8px #a6103024; }
+.referral-emergency-icon { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 9px; color: #fff; background: #ffffff2b; }
+.referral-emergency-banner > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.referral-emergency-banner > div > b { font-size: max(calc(13px * var(--ui-font-scale)), 11px); }
+.referral-emergency-banner > div > small { color: #ffe1e3; font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+.referral-emergency-banner > a { min-height: 35px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 7px; color: #bf1726; background: #fff; font-size: max(calc(9px * var(--ui-font-scale)), 11px); font-weight: 700; text-decoration: none; white-space: nowrap; }
+.referral-emergency-banner > a:hover { background: #fff1f1; }
+.referral-toolbar { min-height: 29px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #8793a4; font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+.referral-toolbar > span b { color: #46536a; }
+.referral-toolbar label { height: 29px; width: min(280px, 100%); padding: 0 8px; display: flex; align-items: center; gap: 6px; border: 1px solid #e0e5ed; border-radius: 5px; color: #8895a6; background: #fff; }
+.referral-toolbar input { min-width: 0; flex: 1; border: 0; outline: 0; color: #263247; background: transparent; font: inherit; font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+.referral-toolbar label > button { border: 0; color: #8995a5; background: transparent; font-size: max(calc(13px * var(--ui-font-scale)), 11px); }
+.referral-hospital-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.referral-hospital-card { min-width: 0; min-height: 181px; padding: 12px; display: flex; flex-direction: column; border: 1px solid #e3e7ef; border-radius: 8px; background: #fff; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.referral-hospital-card:hover { border-color: #b6d8c7; box-shadow: 0 5px 16px #1a483410; transform: translateY(-1px); }
+.referral-hospital-card > header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.hospital-type { width: fit-content; max-width: 90%; padding: 4px 6px; border-radius: 4px; color: #66758b; background: #f1f4f8; font-size: max(calc(7px * var(--ui-font-scale)), 11px); font-weight: 700; }
+.hospital-type.primary { color: #24719b; background: #e6f3fd; }
+.hospital-type.public { color: #16815e; background: #e3f8ec; }
+.referral-hospital-card > header > button { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border: 1px solid #e2e7ef; border-radius: 5px; color: #8091a7; background: #fff; }
+.referral-hospital-card h2 { margin: 7px 0 4px; color: #273247; font-size: max(calc(11px * var(--ui-font-scale)), 11px); line-height: 1.35; }
+.hospital-address { min-height: 13px; display: flex; align-items: flex-start; gap: 4px; color: #8491a4; font-size: max(calc(7px * var(--ui-font-scale)), 11px); line-height: 1.4; }
+.hospital-address svg { flex: none; }
+.referral-hospital-card ul { margin: 7px 0 8px; padding-left: 13px; color: #647187; font-size: max(calc(7px * var(--ui-font-scale)), 11px); line-height: 1.55; }
+.referral-hospital-card li::marker { color: #8798ad; }
+.referral-hospital-card footer { min-height: 24px; margin-top: auto; padding-top: 7px; display: flex; align-items: center; justify-content: space-between; gap: 6px; border-top: 1px solid #edf0f4; }
+.referral-hospital-card footer > span { display: inline-flex; align-items: center; gap: 5px; color: #16815e; font-size: max(calc(7px * var(--ui-font-scale)), 11px); font-weight: 700; white-space: nowrap; }
+.referral-hospital-card footer > button { padding: 3px 0; display: inline-flex; align-items: center; gap: 3px; border: 0; color: #16815e; background: transparent; font-size: max(calc(7px * var(--ui-font-scale)), 11px); font-weight: 700; white-space: nowrap; }
+.referral-hospital-card footer > button:hover { color: #075d46; }
+.hospital-empty { grid-column: 1 / -1; padding: 26px; text-align: center; color: #8190a4; font-size: max(calc(9px * var(--ui-font-scale)), 11px); }
+.role-patient .brand-logo { position: relative; }
+.role-patient .brand-logo svg { opacity: 0; }
+.role-patient .brand-logo::before { content: ''; position: absolute; width: 13px; height: 13px; border: 1.5px solid #fff; border-radius: 2px; }
+.role-patient .brand-logo::after { content: '+'; position: absolute; color: #fff; font-size: max(calc(15px * var(--ui-font-scale)), 11px); font-weight: 800; line-height: 1; }
+
+@media (max-width: 900px) {
+  .bed-capacity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .prescription-grid { gap: 8px; }
+  .referral-hospital-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .service-page { gap: 12px; }
+  .service-heading { flex-direction: column; gap: 9px; }
+  .service-heading h1 { font-size: max(calc(19px * var(--ui-font-scale)), 11px); }
+  .service-heading p { font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+  .alarm-test-button { min-height: 32px; font-size: max(calc(8px * var(--ui-font-scale)), 11px); }
+  .prescription-grid, .bed-capacity-grid, .referral-hospital-grid { grid-template-columns: 1fr; }
+  .prescription-card { min-height: 205px; }
+  .pharmacy-pickup { align-items: flex-start; flex-wrap: wrap; }
+  .pharmacy-pickup > button { width: 100%; justify-content: center; }
+  .doctor-schedule-heading, .doctor-schedule-heading > div:first-child { align-items: flex-start; flex-direction: column; }
+  .doctor-schedule-heading { padding: 10px; }
+  .referral-emergency-banner { align-items: flex-start; flex-wrap: wrap; padding: 12px; }
+  .referral-emergency-banner > div { flex-basis: calc(100% - 55px); }
+  .referral-emergency-banner > a { width: 100%; }
+  .referral-toolbar { align-items: stretch; flex-direction: column; }
+  .referral-toolbar label { width: 100%; }
+}

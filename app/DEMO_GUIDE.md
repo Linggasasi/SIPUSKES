@@ -1,0 +1,48 @@
+# SIPUSKES Depok Demo
+
+Aplikasi React + Vite dengan Tailwind CSS v4, Lucide React, Jitsi Meet External API, backend Node.js, PostgreSQL, dan WebSocket. Saat dibuka, aplikasi menampilkan landing masuk/daftar.
+
+## Menjalankan
+
+```sh
+cd app
+npm install
+npm run db:init
+npm run dev:full
+```
+
+Buka URL yang ditampilkan Vite, biasanya `http://localhost:5173`. PostgreSQL harus berjalan dan `.env` harus berisi `DATABASE_URL` yang valid.
+
+Scaffold baru dengan `npm create vite@latest sipuskes -- --template react`, lalu jalankan `npm install lucide-react tailwindcss @tailwindcss/vite`. Tailwind v4 diaktifkan melalui plugin `@tailwindcss/vite` di `vite.config.js` dan `@import "tailwindcss"` di `src/index.css`.
+
+## Akun Demo
+
+- Nomor telepon: `0812 3456 7890`
+- Nomor peserta: `00020268492`
+- PIN pasien: `12345678`
+- Kunci unik: `KEY-9F8A-7C2B`
+- Admin: `admin@puskesmas.local` · PIN `87654321`
+- Dokter: `dokter@puskesmas.local` · PIN `24681357`
+
+Landing menyediakan tab **Masuk Pasien**, **Masuk Petugas**, dan **Daftar Akun Baru**. PIN pasien harus tepat 8 angka dan dikonfirmasi ulang. Pendaftaran menghasilkan nomor peserta numerik serta kunci unik; nomor telepon yang sudah dipakai ditolak. NIK tidak diminta maupun disimpan. Setelah login, menu profil/pengaturan menyediakan tombol keluar.
+
+Data akun disimpan terpisah per nomor peserta pada localStorage key `sipuskes-demo-v2`. Data format lama `sipuskes-demo-v1` dimigrasikan sebagai akun, tetapi pengguna harus login kembali setelah migrasi. Akun Siti Nurbaya adalah akun demo pasien, bukan sesi aktif otomatis.
+
+Setelah login, pasien masuk ke beranda layanan; admin masuk ke **Dasbor Admin** dengan menu operasional dan analitik; dokter masuk ke **Dasbor Dokter** dengan agenda, antrean pasien, dan konsultasi virtual. Profil staf hanya menampilkan sesi staf serta tombol keluar.
+
+## Alur Demo
+
+- **Antrean:** daftar untuk hari ini atau besok, pilih poli, tenaga medis yang tersedia, jam 07.00–19.00, dan tulis keluhan. Tiket memuat dokter, keluhan, jumlah pasien di depan, serta estimasi tunggu.
+- **Rekam medis:** riwayat kunjungan, hasil lab dummy, dan skrining digital yang tersimpan lokal.
+- **Obat & apotek:** stok dummy, resep, aturan minum sebelum/sesudah makan, dan simulasi alarm/notifikasi.
+- **Konsultasi virtual:** pasien membuat permintaan melalui API; record disimpan di PostgreSQL sebelum notifikasi dikirim. WebSocket merutekan permintaan ke akun dokter yang dipilih (relasi `users`/`staff`), bukan ke seluruh koneksi dokter. Inbox dokter memuat ulang daftar saat WebSocket tersambung kembali. Tombol **Terima & hubungi** hanya dapat menerima permintaan yang ditujukan ke dokter tersebut, memperbarui status di PostgreSQL, lalu membuka room Jitsi yang sama pada sisi pasien/dokter. Internet dan akses `meet.jit.si` diperlukan.
+- **Fasilitas & jadwal:** jadwal dokter/tindakan serta kapasitas bed rawat inap dan IGD.
+- **Admin:** analitik hanya muncul setelah login admin; admin dapat mengubah ketersediaan dokter hari ini/besok dan melihat tiket antrean beserta keluhan pasien.
+- **Dasbor dokter:** menampilkan jadwal praktik, ringkasan antrean, pasien berikutnya, dan pintasan konsultasi. Daftar pasien tersedia di menu **Antrean dokter**.
+- **Darurat:** tautan panggilan `119` dan surat rujukan digital demo untuk RSUI, RS Puri Cinere, RS Primaya Depok, RS Permata Depok, RSU Bunda Margonda, RSUD Khidmat Sehat Afiat (Kiari), RSU Bhakti Yudha, RS Bhayangkara Brimob, dan Brawijaya Hospital Depok.
+
+## Batasan Demo
+
+Jadwal, stok, kapasitas, dan analitik adalah data simulasi. Akun, tiket, rekam medis, dan skrining disimpan di `localStorage`; permintaan konsultasi tersimpan di PostgreSQL. Routing dokter memvalidasi email dokter terhadap database, tetapi identitas login UI masih demo sisi klien dan email WebSocket/API bukan bukti autentikasi. Sebelum produksi, tambahkan autentikasi server (misalnya sesi/JWT yang aman), otorisasi berbasis identitas terverifikasi, HTTPS/WSS, pembatasan akses data pasien, audit, dan validasi privasi. Hash PIN SHA-256 tanpa salt dan `localStorage` tidak aman untuk data pasien nyata. Jitsi menggunakan layanan publik dan bukan pengganti layanan gawat darurat.
+
+Verifikasi: `npm run build` dan `npm run lint`.
