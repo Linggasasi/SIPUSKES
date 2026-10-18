@@ -114,6 +114,17 @@ const greeting = () => {
 }
 const honorific = (gender) => gender === 'Laki-laki' ? 'Bapak' : gender === 'Perempuan' ? 'Ibu' : ''
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+const WS_BASE = import.meta.env.VITE_WS_BASE_URL || (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host
+
+async function apiFetch(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, options)
+  let payload
+  try { payload = await response.json() } catch { payload = null }
+  if (!response.ok) throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`)
+  return payload
+}
+
 function Modal({ title, close, children, wide = false }) {
   useEffect(() => { const keydown = (event) => event.key === 'Escape' && close(); window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown) }, [close])
   return <div className="backdrop" onMouseDown={(event) => event.target === event.currentTarget && close()}><section className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header className="modal-head"><div><small>SIPUSKES DEPOK</small><h2>{title}</h2></div><button className="icon-button" aria-label="Tutup" onClick={close}><X size={18} /></button></header>{children}</section></div>
@@ -235,16 +246,13 @@ function App() {
     let reconnectTimer
     let reconnectDelay = 1000
     const loadConsultations = async () => {
-      const response = await fetch(`/api/consultations?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`)
-        const payload = await response.json()
-        if (!response.ok) throw new Error(payload.error || 'Gagal memuat konsultasi.')
+      const payload = await apiFetch(`/consultations?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`)
         if (active) setSharedConsultations(payload.consultations)
     }
     const connect = () => {
       if (!active) return
       setRealtimeStatus('connecting')
-      const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      socket = new WebSocket(`${socketProtocol}//${window.location.host}/ws?role=doctor&email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`)
+      socket = new WebSocket(`${WS_BASE}/ws?role=doctor&email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`)
       socket.addEventListener('open', () => {
         if (!active) return
         reconnectDelay = 1000
@@ -353,7 +361,7 @@ function App() {
   }
   async function requestVirtualConsultation() {
     try {
-      const response = await fetch('/api/consultations', {
+      const payload = await apiFetch('/consultations', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -371,7 +379,6 @@ function App() {
           complaint: ticket.complaint || 'Konsultasi keluhan ringan',
         }),
       })
-      const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Permintaan konsultasi gagal disimpan.')
       setCurrentConsultation(payload.consultation); setRoom(payload.consultation.room); setModal('video')
       toast('Permintaan konsultasi tersimpan dan dikirim ke dokter.')
@@ -381,8 +388,7 @@ function App() {
   }
   async function acceptVirtualConsultation(request) {
     try {
-      const response = await fetch(`/api/consultations/${request.id}/accept?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`, { method: 'PATCH' })
-      const payload = await response.json()
+      const payload = await apiFetch(`/consultations/${request.id}/accept?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`, { method: 'PATCH' })
       if (!response.ok) throw new Error(payload.error || 'Konsultasi tidak dapat diterima.')
       setSharedConsultations((current) => [payload.consultation, ...current.filter((item) => item.id !== payload.consultation.id)])
       setCurrentConsultation(payload.consultation); setRoom(payload.consultation.room); setModal('video')

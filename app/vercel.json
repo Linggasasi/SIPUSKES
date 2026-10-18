@@ -1,0 +1,19 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://api.sipuskes.depok.id/api/:path*" },
+    { "source": "/ws/:path*", "destination": "https://api.sipuskes.depok.id/ws/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PATCH, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
+      ]
+    }
+  ],
+  "cleanUrls": true,
+  "trailingSlash": false
+}
