@@ -28,6 +28,14 @@ app.use(cors({
 }))
 app.use(express.json({ limit: '1mb' }))
 
+let dbReady = false
+async function ensureDb() {
+  if (!dbReady) {
+    try { await ensureConsultationsTable(); dbReady = true } catch (e) { console.error('[migration]', e) }
+  }
+}
+app.use(async (_req, _res, next) => { await ensureDb(); next() })
+
 // Auto-migration: buat tabel consultations jika belum ada
 async function ensureConsultationsTable() {
   await pool.query(`
@@ -145,16 +153,20 @@ webSockets.on('connection', (socket) => {
 
 pool.on('error', (error) => console.error('[postgres]', error))
 
-ensureConsultationsTable()
-  .then(() => {
-    server.listen(port, '0.0.0.0', () => {
-      console.log(`SIPUSKES Express API + WebSocket berjalan di http://0.0.0.0:${port}`)
+if (process.env.VERCEL !== '1') {
+  ensureConsultationsTable()
+    .then(() => {
+      server.listen(port, '0.0.0.0', () => {
+        console.log(`SIPUSKES Express API + WebSocket berjalan di http://0.0.0.0:${port}`)
+      })
     })
-  })
-  .catch((error) => {
-    console.error('[migration]', error)
-    process.exit(1)
-  })
+    .catch((error) => {
+      console.error('[migration]', error)
+      process.exit(1)
+    })
+}
+
+export default app
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
