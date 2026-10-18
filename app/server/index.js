@@ -21,7 +21,7 @@ app.use(express.json({ limit: '1mb' }))
 let dbReady = false
 async function ensureDb() {
   if (!dbReady) {
-    try { await ensureConsultationsTable(); dbReady = true } catch (e) { console.error('[migration]', e) }
+    try { await ensureConsultationsTable(); await ensurePatientsTable(); dbReady = true } catch (e) { console.error('[migration]', e) }
   }
 }
 app.use(async (_req, _res, next) => { await ensureDb(); next() })
@@ -38,6 +38,17 @@ async function ensureConsultationsTable() {
     )
   `)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_consultations_status ON consultations(status)`)
+}
+
+async function ensurePatientsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS patients (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      medical_record_number VARCHAR UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
 }
 
 function toConsultation(row) {
@@ -107,6 +118,28 @@ app.patch('/api/consultations/:id/accept', async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ error: 'Konsultasi tidak ditemukan atau sudah diproses.' })
     const consultation = toConsultation(rows[0])
     res.json({ consultation })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/patients', async (req, res, next) => {
+  try {
+    const { name, medicalRecordNumber } = req.body
+    const { rows } = await pool.query(
+      'INSERT INTO patients (name, medical_record_number) VALUES ($1, $2) ON CONFLICT (medical_record_number) DO UPDATE SET name = $1 RETURNING *',
+      [name, medicalRecordNumber]
+    )
+    res.status(201).json({ patient: rows[0] })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/patients', async (_req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM patients ORDER BY created_at DESC')
+    res.json({ patients: rows })
   } catch (error) {
     next(error)
   }

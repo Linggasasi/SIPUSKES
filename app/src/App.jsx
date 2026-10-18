@@ -336,6 +336,7 @@ const payload = await fetch('/api/consultations').then((response) => response.js
     const nextProfile = { name: String(form.get('name')).trim(), phone, address: String(form.get('address')), birthDate: String(form.get('birthDate')), gender: String(form.get('gender')), blood: String(form.get('blood')), emergency: String(form.get('emergency')), economy: String(form.get('economy')), memberId, uniqueKey: `KEY-${random()}-${random()}`, pinHash: await hashPin(pin) }
     const account = normalizeAccount({ id: memberId, profile: nextProfile, appointments: [], visits: [], virtualConsultations: [], ticket: null, screening: { complaint: '', history: '', submitted: false } })
     setStore((current) => ({ ...current, accounts: [...current.accounts, account], session: { loggedIn: true, role: 'patient', accountId: account.id } }))
+    try { await fetch('/api/patients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nextProfile.name, medicalRecordNumber: memberId }) }) } catch {}
     setPage('Beranda'); setPinStatus(''); setAuthError(''); setModal(''); toast(`Akun siap. Nomor peserta Anda ${memberId}`)
   }
   async function login(event) {
