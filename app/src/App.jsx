@@ -499,8 +499,7 @@ function App() {
         <Settings size={15} /> Pengaturan akun
       </button>
       <small>© 2026 SIPUSKES Depok<br />Privasi · Bantuan</small>
-    </div>
-  </aside> className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div><button className="clinic-picker"><span><Hospital size={16} /></span><span><b>UPTD PKM Beji</b><small><MapPin size={10} /> Jl. Bambu Kuning No. 1</small></span><ChevronDown size={13} /></button><nav>{nav.map(([label, Icon, group]) => <div key={label}>{group && }<button className={`nav-link ${activeNavLabel === label ? 'active' : ''}`} onClick={() => activateNavItem(label)}><Icon size={16} /><span>{label}</span>{label === 'Pendaftaran Antrean' && <i>1</i>}</button></div>)}</nav></div><div className="sidebar-foot"><div className="help-box"><MessageCircle size={17} /><b>Butuh bantuan?</b><span>Petugas kami siap membantu.</span><button onClick={() => toast('Petugas layanan akan menghubungi Anda.')}>Hubungi petugas <ArrowRight size={12} /></button></div>{role === 'patient' && <button className="sidebar-emergency" onClick={() => setModal('emergency')}><Siren size={14} /> Panggilan Darurat 119</button>}<button className="nav-link" onClick={() => setModal('account')}><Settings size={15} /> Pengaturan akun</button><small>© 2026 SIPUSKES Depok<br />Privasi · Bantuan</small></div></aside>
+    </div> </aside>
     <main className="main-content">
       {page === 'Dasbor admin' && role === 'admin' && <AdminDashboard appointments={data.appointments} availability={data.availability} go={go} />}
       {page === 'Operasional admin' && role === 'admin' && <AdminOperations appointments={data.appointments} availability={data.availability} toggle={toggleAvailability} />}
