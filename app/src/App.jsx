@@ -13,6 +13,7 @@ import { FacilitiesScreen, PharmacyScreen, ReferralScreen } from './ServicePages
 const KEY = 'sipuskes-demo-v2'
 const LEGACY_KEY = 'sipuskes-demo-v1'
 const DEMO_DOCTOR_EMAIL = 'dokter@puskesmas.local'
+const makeRoomName = (memberId) => `SIPUSKES-Konsultasi-${String(memberId || '').replace(/\s/g, '') || 'DemoPasien'}`
 const GENDERS = ['Perempuan', 'Laki-laki']
 const clinics = [
   ['Poli Umum', Stethoscope, 'Pemeriksaan umum'],
@@ -283,6 +284,21 @@ function App() {
       socket?.close()
     }
   }, [session.loggedIn, role])
+
+  useEffect(() => {
+    if (!session.loggedIn || role !== 'doctor' || realtimeStatus !== 'offline') return undefined
+    let active = true
+    let timer
+    const poll = async () => {
+      try {
+        const payload = await apiFetch(`/consultations?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`)
+        if (active) setSharedConsultations(payload.consultations)
+      } catch { if (active) setRealtimeStatus('offline') }
+    }
+    poll()
+    timer = window.setInterval(poll, 3000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [session.loggedIn, role, realtimeStatus])
   const updatePatientAccount = (update, accountId = session.accountId) => {
     if (!accountId) return
     setStore((current) => ({ ...current, accounts: current.accounts.map((account) => account.id === accountId ? update(account) : account) }))
@@ -360,6 +376,7 @@ function App() {
     setStore((current) => ({ ...current, availability: { ...current.availability, [day]: { ...current.availability[day], [doctor]: !current.availability[day][doctor] } } }))
   }
   async function requestVirtualConsultation() {
+    const room = makeRoomName(profile.memberId)
     try {
       const payload = await apiFetch('/consultations', {
         method: 'POST',
@@ -377,14 +394,13 @@ function App() {
           doctor: ticket.doctor || 'dr. Aditya Pratama',
           clinic: ticket.clinic === 'Belum ada antrean' ? 'Poli Umum' : ticket.clinic || 'Poli Umum',
           complaint: ticket.complaint || 'Konsultasi keluhan ringan',
+          room_code: room,
         }),
       })
-      setCurrentConsultation(payload.consultation); setRoom(payload.consultation.room); setModal('video')
+      setCurrentConsultation(payload.consultation); setRoom(room); setModal('video')
       toast('Permintaan konsultasi tersimpan dan dikirim ke dokter.')
     } catch (error) {
-      const mockId = randomInt(999999).toString().padStart(6, '0')
-      const room = `sipuskes-mock-${mockId}`
-      const mockConsultation = { id: 'mock-' + mockId, patient: profile.name, doctor: ticket.doctor || 'dr. Aditya Pratama', clinic: ticket.clinic || 'Poli Umum', complaint: ticket.complaint || 'Konsultasi keluhan ringan', room, status: 'Menunggu dokter', createdAt: '' }
+      const mockConsultation = { id: 'mock-' + room, patient: profile.name, doctor: ticket.doctor || 'dr. Aditya Pratama', clinic: ticket.clinic || 'Poli Umum', complaint: ticket.complaint || 'Konsultasi keluhan ringan', room, status: 'Menunggu dokter', createdAt: '' }
       setCurrentConsultation(mockConsultation); setRoom(room); setModal('video')
       toast(`Backend tidak tersedia (${error.message}). Mode demo: ruang Jitsi dibuka langsung.`)
     }

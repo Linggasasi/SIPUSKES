@@ -179,7 +179,7 @@ async function createConsultation(input) {
 
     const complaint = String(input.complaint || '').trim()
     if (!complaint) throw Object.assign(new Error('Keluhan konsultasi wajib diisi.'), { status: 400 })
-    const roomCode = `sipuskes-consult-${randomUUID()}`
+    const roomCode = String(input.room_code || `SIPUSKES-Konsultasi-${input.memberNumber || randomUUID()}`)
     const result = await client.query(
       `INSERT INTO consultations (patient_id, provider_id, clinic_id, room_code, complaint, status)
        VALUES ($1, $2, $3, $4, $5, 'waiting')
@@ -250,7 +250,7 @@ app.patch('/api/consultations/:id/accept', async (req, res, next) => {
   }
 })
 
-app.use((error, req, res, next) => {
+app.use((error, _req, res, _next) => {
   console.error('[api]', error)
   res.status(error.status || 500).json({ error: error.status ? error.message : 'Terjadi kesalahan pada layanan konsultasi.' })
 })
