@@ -1,9 +1,7 @@
 import express from 'express'
 import cors from 'cors'
-import { createServer } from 'node:http'
 import 'dotenv/config'
 import pg from 'pg'
-import { WebSocketServer, WebSocket } from 'ws'
 
 const { Pool } = pg
 const pool = new Pool({
@@ -11,19 +9,11 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 })
 
-const port = Number(process.env.PORT || 3001)
 const app = express()
-const server = createServer(app)
-const webSockets = new WebSocketServer({ noServer: true })
 
-const ALLOWED_ORIGIN = 'https://sipuskes.vercel.app'
-
+// 1. CORS Permisif (Aman untuk Vercel Serverless)
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true)
-    if (origin === ALLOWED_ORIGIN) return callback(null, true)
-    return callback(new Error('Origin tidak diizinkan oleh CORS.'))
-  },
+  origin: true,
   credentials: true,
 }))
 app.use(express.json({ limit: '1mb' }))
@@ -36,7 +26,7 @@ async function ensureDb() {
 }
 app.use(async (_req, _res, next) => { await ensureDb(); next() })
 
-// Auto-migration: buat tabel consultations jika belum ada
+// 2. Auto-migration PostgreSQL
 async function ensureConsultationsTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS consultations (
@@ -61,15 +51,6 @@ function toConsultation(row) {
   }
 }
 
-async function notifyDoctor(type, consultation) {
-  const message = JSON.stringify({ type, consultation })
-  for (const socket of webSockets.clients) {
-    if (socket.readyState === WebSocket.OPEN && socket.role === 'doctor') {
-      socket.send(message)
-    }
-  }
-}
-
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1')
@@ -79,6 +60,7 @@ app.get('/api/health', async (req, res) => {
   }
 })
 
+// 3. Endpoint GET untuk Polling Dokter
 app.get('/api/consultations', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -91,20 +73,25 @@ app.get('/api/consultations', async (req, res, next) => {
   }
 })
 
+// 4. Endpoint POST saat Pasien klik "Mulai Konsultasi"
 app.post('/api/consultations', async (req, res, next) => {
   try {
-    const { patientName, roomCode } = req.body
+    // Toleransi camelCase maupun snake_case
+    const patientName = req.body.patientName || req.body.patient_name
+    const roomCode = req.body.roomCode || req.body.room_code
+
     if (!patientName || !roomCode) {
-      return res.status(400).json({ error: 'patientName dan roomCode wajib diisi.' })
+      return res.status(400).json({ error: 'patientName/patient_name dan roomCode/room_code wajib diisi.' })
     }
+
     const { rows } = await pool.query(
       `INSERT INTO consultations (patient_name, room_code, status)
        VALUES ($1, $2, 'WAITING')
+       ON CONFLICT (room_code) DO UPDATE SET status = 'WAITING'
        RETURNING *`,
       [patientName, roomCode]
     )
     const consultation = toConsultation(rows[0])
-    notifyDoctor('consultation.created', consultation)
     res.status(201).json({ consultation })
   } catch (error) {
     next(error)
@@ -119,7 +106,6 @@ app.patch('/api/consultations/:id/accept', async (req, res, next) => {
     )
     if (!rows.length) return res.status(404).json({ error: 'Konsultasi tidak ditemukan atau sudah diproses.' })
     const consultation = toConsultation(rows[0])
-    notifyDoctor('consultation.updated', consultation)
     res.json({ consultation })
   } catch (error) {
     next(error)
@@ -131,47 +117,4 @@ app.use((error, _req, res, _next) => {
   res.status(error.status || 500).json({ error: error.message || 'Terjadi kesalahan pada layanan konsultasi.' })
 })
 
-server.on('upgrade', (request, socket, head) => {
-  const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`)
-  if (url.pathname !== '/ws') {
-    socket.destroy()
-    return
-  }
-  if (url.searchParams.get('role') !== 'doctor') {
-    socket.destroy()
-    return
-  }
-  webSockets.handleUpgrade(request, socket, head, (client) => {
-    client.role = 'doctor'
-    webSockets.emit('connection', client)
-  })
-})
-
-webSockets.on('connection', (socket) => {
-  socket.send(JSON.stringify({ type: 'connected' }))
-})
-
-pool.on('error', (error) => console.error('[postgres]', error))
-
-if (process.env.VERCEL !== '1') {
-  ensureConsultationsTable()
-    .then(() => {
-      server.listen(port, '0.0.0.0', () => {
-        console.log(`SIPUSKES Express API + WebSocket berjalan di http://0.0.0.0:${port}`)
-      })
-    })
-    .catch((error) => {
-      console.error('[migration]', error)
-      process.exit(1)
-    })
-}
-
 export default app
-
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, () => {
-    server.close()
-    webSockets.close()
-    pool.end().finally(() => process.exit(0))
-  })
-}
