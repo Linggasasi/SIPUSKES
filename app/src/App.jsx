@@ -411,8 +411,96 @@ function App() {
     : role === 'admin' && page === 'Analitik petugas' ? 'Dasbor Analitik Petugas' : page
   const activateNavItem = (label) => role === 'patient' ? patientNavActions[label]?.() : go(label === 'Dasbor Analitik Petugas' ? 'Analitik petugas' : label)
   return <div className={`app-shell role-${role}`} onClick={(event) => { const logoutButton = event.target.closest('.logout-button'); if (logoutButton) { signOut(logoutButton.textContent.includes('Buat akun') ? 'register' : 'patient'); return } if (role !== 'patient' && event.target.closest('.profile-button, .sidebar-foot .nav-link')) setModal('staff') }}>
-    <header className="topbar"><div className="top-brand"><button className="icon-button mobile-menu" aria-label="Buka menu" onClick={() => setMobileNav(!mobileNav)}><Menu size={18} /></button><span className="brand-logo"><Hospital size={20} /></span><span className="brand-type"><b>SIPUSKES<span>·</span></b><small>Depok</small></span><span className="open-badge"><i /> Siaga 24 Jam</span></div><label className="search-bar"><Search size={15} /><input placeholder="Cari poli, nomor tiket, dokter, atau jadwal resep" value={query} onChange={(event) => setQuery(event.target.value)} /><kbd>⌘ K</kbd></label><div className="top-actions">{role === 'patient' && <div className="portal-switch" aria-label="Pilih portal"><button className="portal-choice active" onClick={() => openPortalLogin('patient')}>Portal Pasien</button><button className="portal-choice" onClick={() => openPortalLogin('admin')}>Portal Petugas</button></div>}<button className="emergency-link" onClick={() => setModal('emergency')}><Siren size={15} /><span>Darurat 119</span></button><div className="notification-wrap"><button className="icon-button" aria-label="Notifikasi" onClick={() => setNotifications(!notifications)}><Bell size={17} /><i className="notification-dot" /></button>{notifications && <div className="notification-popover"><b>Notifikasi</b><p><Pill size={14} /> Paracetamol · sesudah makan</p><p><Ticket size={14} /> {ticket.ahead} pasien di depan antrean</p><p><CalendarDays size={14} /> Kontrol · 22 Okt 2026</p></div>}</div><button className="profile-button" onClick={() => setModal('account')}><span className="avatar">{profile.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span><span>{profile.name}</span><ChevronDown size={13} /></button></div></header>
-    <div className="layout"><aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div><button className="clinic-picker"><span><Hospital size={16} /></span><span><b>UPTD PKM Beji</b><small><MapPin size={10} /> Jl. Bambu Kuning No. 1</small></span><ChevronDown size={13} /></button><nav>{nav.map(([label, Icon, group]) => <div key={label}>{group && }<button className={`nav-link ${activeNavLabel === label ? 'active' : ''}`} onClick={() => activateNavItem(label)}><Icon size={16} /><span>{label}</span>{label === 'Pendaftaran Antrean' && <i>1</i>}</button></div>)}</nav></div><div className="sidebar-foot"><div className="help-box"><MessageCircle size={17} /><b>Butuh bantuan?</b><span>Petugas kami siap membantu.</span><button onClick={() => toast('Petugas layanan akan menghubungi Anda.')}>Hubungi petugas <ArrowRight size={12} /></button></div>{role === 'patient' && <button className="sidebar-emergency" onClick={() => setModal('emergency')}><Siren size={14} /> Panggilan Darurat 119</button>}<button className="nav-link" onClick={() => setModal('account')}><Settings size={15} /> Pengaturan akun</button><small>© 2026 SIPUSKES Depok<br />Privasi · Bantuan</small></div></aside>
+    <header className="topbar">
+  <div className="top-brand">
+    <button className="icon-button mobile-menu" aria-label="Buka menu" onClick={() => setMobileNav(!mobileNav)}>
+      <Menu size={18} />
+    </button>
+    <span className="brand-logo"><Hospital size={20} /></span>
+    <span className="brand-type"><b>SIPUSKES<span>·</span></b><small>Depok</small></span>
+    <span className="open-badge"><i /> Siaga 24 Jam</span>
+  </div>
+  
+  <label className="search-bar">
+    <Search size={15} />
+    <input 
+      placeholder="Cari poli, nomor tiket, dokter, atau jadwal resep" 
+      value={query} 
+      onChange={(event) => setQuery(event.target.value)} 
+    />
+  </label>
+
+  <div className="top-actions">
+    {role === 'patient' && (
+      <div className="portal-switch" aria-label="Pilih portal">
+        <button className="portal-choice active" onClick={() => openPortalLogin('patient')}>Portal Pasien</button>
+        <button className="portal-choice" onClick={() => openPortalLogin('admin')}>Portal Petugas</button>
+      </div>
+    )}
+    <button className="emergency-link" onClick={() => setModal('emergency')}>
+      <Siren size={15} /><span>Darurat 119</span>
+    </button>
+    <div className="notification-wrap">
+      <button className="icon-button" aria-label="Notifikasi" onClick={() => setNotifications(!notifications)}>
+        <Bell size={17} /><i className="notification-dot" />
+      </button>
+      {notifications && (
+        <div className="notification-popover">
+          <b>Notifikasi</b>
+          <p><Pill size={14} /> Paracetamol · sesudah makan</p>
+          <p><Ticket size={14} /> {ticket.ahead} pasien di depan antrean</p>
+          <p><CalendarDays size={14} /> Kontrol · 22 Okt 2026</p>
+        </div>
+      )}
+    </div>
+    <button className="profile-button" onClick={() => setModal('account')}>
+      <span className="avatar">{profile.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span>
+      <span>{profile.name}</span>
+      <ChevronDown size={13} />
+    </button>
+  </div>
+</header>
+
+<div className="layout">
+  <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
+    <div>
+      <button className="clinic-picker">
+        <span><Hospital size={16} /></span>
+        <span><b>UPTD PKM Beji</b><small><MapPin size={10} /> Jl. Bambu Kuning No. 1</small></span>
+        <ChevronDown size={13} />
+      </button>
+      <nav>
+        {nav.map(([label, Icon]) => (
+          <div key={label}>
+            <button className={`nav-link ${activeNavLabel === label ? 'active' : ''}`} onClick={() => activateNavItem(label)}>
+              <Icon size={16} />
+              <span>{label}</span>
+              {label === 'Pendaftaran Antrean' && <i>1</i>}
+            </button>
+          </div>
+        ))}
+      </nav>
+    </div>
+    <div className="sidebar-foot">
+      <div className="help-box">
+        <MessageCircle size={17} />
+        <b>Butuh bantuan?</b>
+        <span>Petugas kami siap membantu.</span>
+        <button onClick={() => toast('Petugas layanan akan menghubungi Anda.')}>
+          Hubungi petugas <ArrowRight size={12} />
+        </button>
+      </div>
+      {role === 'patient' && (
+        <button className="sidebar-emergency" onClick={() => setModal('emergency')}>
+          <Siren size={14} /> Panggilan Darurat 119
+        </button>
+      )}
+      <button className="nav-link" onClick={() => setModal('account')}>
+        <Settings size={15} /> Pengaturan akun
+      </button>
+      <small>© 2026 SIPUSKES Depok<br />Privasi · Bantuan</small>
+    </div>
+  </aside> className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div><button className="clinic-picker"><span><Hospital size={16} /></span><span><b>UPTD PKM Beji</b><small><MapPin size={10} /> Jl. Bambu Kuning No. 1</small></span><ChevronDown size={13} /></button><nav>{nav.map(([label, Icon, group]) => <div key={label}>{group && }<button className={`nav-link ${activeNavLabel === label ? 'active' : ''}`} onClick={() => activateNavItem(label)}><Icon size={16} /><span>{label}</span>{label === 'Pendaftaran Antrean' && <i>1</i>}</button></div>)}</nav></div><div className="sidebar-foot"><div className="help-box"><MessageCircle size={17} /><b>Butuh bantuan?</b><span>Petugas kami siap membantu.</span><button onClick={() => toast('Petugas layanan akan menghubungi Anda.')}>Hubungi petugas <ArrowRight size={12} /></button></div>{role === 'patient' && <button className="sidebar-emergency" onClick={() => setModal('emergency')}><Siren size={14} /> Panggilan Darurat 119</button>}<button className="nav-link" onClick={() => setModal('account')}><Settings size={15} /> Pengaturan akun</button><small>© 2026 SIPUSKES Depok<br />Privasi · Bantuan</small></div></aside>
     <main className="main-content">
       {page === 'Dasbor admin' && role === 'admin' && <AdminDashboard appointments={data.appointments} availability={data.availability} go={go} />}
       {page === 'Operasional admin' && role === 'admin' && <AdminOperations appointments={data.appointments} availability={data.availability} toggle={toggleAvailability} />}
