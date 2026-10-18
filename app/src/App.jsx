@@ -394,7 +394,7 @@ function App() {
           doctor: ticket.doctor || 'dr. Aditya Pratama',
           clinic: ticket.clinic === 'Belum ada antrean' ? 'Poli Umum' : ticket.clinic || 'Poli Umum',
           complaint: ticket.complaint || 'Konsultasi keluhan ringan',
-          room_code: room,
+          roomCode: room,
         }),
       })
       setCurrentConsultation(payload.consultation); setRoom(room); setModal('video')
