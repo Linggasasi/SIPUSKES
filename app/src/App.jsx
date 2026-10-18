@@ -380,27 +380,13 @@ function App() {
     try {
       const payload = await apiFetch('/consultations', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          memberNumber: profile.memberId,
-          patientName: profile.name,
-          phone: profile.phone,
-          birthDate: profile.birthDate,
-          gender: profile.gender,
-          bloodType: profile.blood,
-          address: profile.address,
-          emergencyPhone: profile.emergency,
-          serviceScheme: profile.economy,
-          doctor: ticket.doctor || 'dr. Aditya Pratama',
-          clinic: ticket.clinic === 'Belum ada antrean' ? 'Poli Umum' : ticket.clinic || 'Poli Umum',
-          complaint: ticket.complaint || 'Konsultasi keluhan ringan',
-          roomCode: room,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patient_name: profile.name, room_code: room, status: 'WAITING' }),
       })
       setCurrentConsultation(payload.consultation); setRoom(room); setModal('video')
       toast('Permintaan konsultasi tersimpan dan dikirim ke dokter.')
     } catch (error) {
-      const mockConsultation = { id: 'mock-' + room, patient: profile.name, doctor: ticket.doctor || 'dr. Aditya Pratama', clinic: ticket.clinic || 'Poli Umum', complaint: ticket.complaint || 'Konsultasi keluhan ringan', room, status: 'Menunggu dokter', createdAt: '' }
+      const mockConsultation = { id: 'mock-' + room, patient: profile.name, room, status: 'Menunggu dokter', createdAt: '' }
       setCurrentConsultation(mockConsultation); setRoom(room); setModal('video')
       toast(`Backend tidak tersedia (${error.message}). Mode demo: ruang Jitsi dibuka langsung.`)
     }
