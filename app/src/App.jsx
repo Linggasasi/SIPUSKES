@@ -174,19 +174,21 @@ function JitsiRoom({ room, name }) {
     const start = () => {
       if (!active || !target.current) return
       if (!window.JitsiMeetExternalAPI) { setFailed(true); return }
+      const rect = target.current.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) { setFailed(true); return }
       api = new window.JitsiMeetExternalAPI('meet.jit.si', { roomName: room, parentNode: target.current, width: '100%', height: '100%', userInfo: { displayName: name }, configOverwrite: { prejoinPageEnabled: true, startWithAudioMuted: true }, interfaceConfigOverwrite: { SHOW_JITSI_WATERMARK: false, MOBILE_APP_PROMO: false } })
       api.addListener?.('videoConferenceJoined', () => { if (active) { window.clearTimeout(timeout); setFailed(false) } })
       api.addListener?.('errorOccurred', () => { if (active) setFailed(true) })
     }
-    if (window.JitsiMeetExternalAPI) start()
+    if (window.JitsiMeetExternalAPI) { start() }
     else {
       const script = document.querySelector('script[src="https://meet.jit.si/external_api.js"]')
-      script?.addEventListener('load', start, { once: true })
-      script?.addEventListener('error', () => setFailed(true), { once: true })
+      if (script && script.readyState === 'loaded') { start() }
+      else { script?.addEventListener('load', start, { once: true }); script?.addEventListener('error', () => setFailed(true), { once: true }) }
     }
     return () => { active = false; window.clearTimeout(timeout); api?.dispose() }
   }, [room, name])
-  return <div className="jitsi-room" ref={target}>{failed && <div className="jitsi-error"><Video size={27} /><b>Jitsi belum terhubung</b><span>Jika layar tetap kosong, browser atau jaringan mungkin memblokir iframe.</span><a href={`https://meet.jit.si/${room}`} target="_blank" rel="noreferrer">Buka ruang di tab baru <ArrowRight size={13} /></a></div>}</div>
+  return <div className="jitsi-room" ref={target} style={{ position: 'relative' }}>{failed && <div className="jitsi-error"><Video size={27} /><b>Jitsi belum terhubung</b><span>Jika layar tetap kosong, browser atau jaringan mungkin memblokir iframe.</span><a href={`https://meet.jit.si/${room}`} target="_blank" rel="noreferrer">Buka ruang di tab baru <ArrowRight size={13} /></a></div>}</div>
 }
 
 function App() {
