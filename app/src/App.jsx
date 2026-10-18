@@ -379,17 +379,19 @@ function App() {
           complaint: ticket.complaint || 'Konsultasi keluhan ringan',
         }),
       })
-      if (!response.ok) throw new Error(payload.error || 'Permintaan konsultasi gagal disimpan.')
       setCurrentConsultation(payload.consultation); setRoom(payload.consultation.room); setModal('video')
       toast('Permintaan konsultasi tersimpan dan dikirim ke dokter.')
     } catch (error) {
-      toast(`Konsultasi belum terkirim: ${error.message}`)
+      const mockId = randomInt(999999).toString().padStart(6, '0')
+      const room = `sipuskes-mock-${mockId}`
+      const mockConsultation = { id: 'mock-' + mockId, patient: profile.name, doctor: ticket.doctor || 'dr. Aditya Pratama', clinic: ticket.clinic || 'Poli Umum', complaint: ticket.complaint || 'Konsultasi keluhan ringan', room, status: 'Menunggu dokter', createdAt: '' }
+      setCurrentConsultation(mockConsultation); setRoom(room); setModal('video')
+      toast(`Backend tidak tersedia (${error.message}). Mode demo: ruang Jitsi dibuka langsung.`)
     }
   }
   async function acceptVirtualConsultation(request) {
     try {
       const payload = await apiFetch(`/consultations/${request.id}/accept?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`, { method: 'PATCH' })
-      if (!response.ok) throw new Error(payload.error || 'Konsultasi tidak dapat diterima.')
       setSharedConsultations((current) => [payload.consultation, ...current.filter((item) => item.id !== payload.consultation.id)])
       setCurrentConsultation(payload.consultation); setRoom(payload.consultation.room); setModal('video')
     } catch (error) {
