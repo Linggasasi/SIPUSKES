@@ -1,3 +1,5 @@
+import express from 'express'
+import cors from 'cors'
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { URL } from 'node:url'
@@ -6,10 +8,27 @@ import pg from 'pg'
 import { WebSocketServer, WebSocket } from 'ws'
 
 const { Pool } = pg
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
-const port = Number(process.env.API_PORT || 3001)
-const server = createServer(handleRequest)
+const hasSsl = typeof process.env.DATABASE_URL === 'string' && /sslmode=require/i.test(process.env.DATABASE_URL)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: hasSsl ? { rejectUnauthorized: false } : false,
+})
+const port = Number(process.env.PORT || 3001)
+const app = express()
+const server = createServer(app)
 const webSockets = new WebSocketServer({ noServer: true })
+
+const ALLOWED_ORIGIN = 'https://sipuskes.vercel.app'
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true)
+    if (origin === ALLOWED_ORIGIN) return callback(null, true)
+    return callback(new Error('Origin tidak diizinkan oleh CORS.'))
+  },
+  credentials: true,
+}))
+app.use(express.json({ limit: '1mb' }))
 
 const consultationSelect = `
   SELECT
@@ -28,26 +47,6 @@ const consultationSelect = `
     LEFT JOIN clinics AS clinic ON clinic.id = consultation.clinic_id
   LEFT JOIN staff AS provider ON provider.id = consultation.provider_id
 `
-
-function sendJson(response, status, body) {
-  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
-  response.end(JSON.stringify(body))
-}
-
-function readJson(request) {
-  return new Promise((resolve, reject) => {
-    let body = ''
-    request.on('data', (chunk) => {
-      body += chunk
-      if (body.length > 1024 * 1024) reject(Object.assign(new Error('Request terlalu besar.'), { status: 413 }))
-    })
-    request.on('end', () => {
-      try { resolve(JSON.parse(body || '{}')) }
-      catch { reject(Object.assign(new Error('Body harus berupa JSON yang valid.'), { status: 400 })) }
-    })
-    request.on('error', reject)
-  })
-}
 
 function toConsultation(row) {
   if (!row) return null
@@ -96,7 +95,7 @@ function notifyDoctor(type, consultation, providerId) {
   }
 }
 
-async function ensurePatient(client, input) {
+async function ensureClient(client, input) {
   const memberNumber = String(input.memberNumber || '').trim()
   const fullName = String(input.patientName || '').trim()
   const phone = String(input.phone || '').replace(/\D/g, '')
@@ -154,7 +153,7 @@ async function createConsultation(input) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    const patientId = await ensurePatient(client, input)
+    const patientId = await ensureClient(client, input)
     const clinicResult = await client.query(
       'SELECT id FROM clinics WHERE name = $1 AND is_active = TRUE ORDER BY id LIMIT 1',
       [String(input.clinic || 'Poli Umum')],
@@ -197,55 +196,64 @@ async function createConsultation(input) {
   }
 }
 
-async function handleRequest(request, response) {
-  const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`)
+app.get('/api/health', async (req, res) => {
   try {
-    if (request.method === 'GET' && url.pathname === '/api/health') {
-      await pool.query('SELECT 1')
-      return sendJson(response, 200, { ok: true, database: 'postgresql' })
-    }
-
-    if (request.method === 'GET' && url.pathname === '/api/consultations') {
-      const providerId = await getDoctorId(url.searchParams.get('email'))
-      const { rows } = await pool.query(
-        `${consultationSelect}
-         WHERE consultation.provider_id = $1
-           AND consultation.status IN ('waiting', 'in_progress')
-         ORDER BY consultation.requested_at DESC`,
-        [providerId],
-      )
-      return sendJson(response, 200, { consultations: rows.map(toConsultation) })
-    }
-
-    if (request.method === 'POST' && url.pathname === '/api/consultations') {
-      const input = await readJson(request)
-      const consultation = await createConsultation(input)
-      notifyDoctor('consultation.created', consultation, consultation.providerId)
-      return sendJson(response, 201, { consultation })
-    }
-
-    const acceptMatch = url.pathname.match(/^\/api\/consultations\/(\d+)\/accept$/)
-    if (request.method === 'PATCH' && acceptMatch) {
-      const providerId = await getDoctorId(url.searchParams.get('email'))
-      const { rows } = await pool.query(
-        `UPDATE consultations
-         SET status = 'in_progress', started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
-         WHERE id = $1 AND provider_id = $2 AND status IN ('waiting', 'in_progress')
-         RETURNING id`,
-        [acceptMatch[1], providerId],
-      )
-      if (!rows.length) return sendJson(response, 404, { error: 'Permintaan konsultasi tidak ditemukan atau sudah selesai.' })
-      const consultation = await getConsultation(rows[0].id)
-      notifyDoctor('consultation.updated', consultation, providerId)
-      return sendJson(response, 200, { consultation })
-    }
-
-    return sendJson(response, 404, { error: 'Endpoint tidak ditemukan.' })
+    await pool.query('SELECT 1')
+    res.json({ ok: true, database: 'postgresql' })
   } catch (error) {
-    console.error('[api]', error)
-    return sendJson(response, error.status || 500, { error: error.status ? error.message : 'Terjadi kesalahan pada layanan konsultasi.' })
+    res.status(500).json({ ok: false, database: 'postgresql', error: error.message })
   }
-}
+})
+
+app.get('/api/consultations', async (req, res, next) => {
+  try {
+    const providerId = await getDoctorId(req.query.email)
+    const { rows } = await pool.query(
+      `${consultationSelect}
+       WHERE consultation.provider_id = $1
+         AND consultation.status IN ('waiting', 'in_progress')
+       ORDER BY consultation.requested_at DESC`,
+      [providerId],
+    )
+    res.json({ consultations: rows.map(toConsultation) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/consultations', async (req, res, next) => {
+  try {
+    const consultation = await createConsultation(req.body)
+    notifyDoctor('consultation.created', consultation, consultation.providerId)
+    res.status(201).json({ consultation })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.patch('/api/consultations/:id/accept', async (req, res, next) => {
+  try {
+    const providerId = await getDoctorId(req.query.email)
+    const { rows } = await pool.query(
+      `UPDATE consultations
+       SET status = 'in_progress', started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+       WHERE id = $1 AND provider_id = $2 AND status IN ('waiting', 'in_progress')
+       RETURNING id`,
+      [req.params.id, providerId],
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Permintaan konsultasi tidak ditemukan atau sudah selesai.' })
+    const consultation = await getConsultation(rows[0].id)
+    notifyDoctor('consultation.updated', consultation, providerId)
+    res.json({ consultation })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.use((error, req, res, next) => {
+  console.error('[api]', error)
+  res.status(error.status || 500).json({ error: error.status ? error.message : 'Terjadi kesalahan pada layanan konsultasi.' })
+})
 
 server.on('upgrade', (request, socket, head) => {
   const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`)
@@ -272,8 +280,7 @@ webSockets.on('connection', (socket) => {
 
 pool.on('error', (error) => console.error('[postgres]', error))
 
-await pool.query('SELECT 1')
-server.listen(port, '0.0.0.0', () => console.log(`SIPUSKES API + WebSocket berjalan di http://localhost:${port}`))
+server.listen(port, '0.0.0.0', () => console.log(`SIPUSKES Express API + WebSocket berjalan di http://0.0.0.0:${port}`))
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
