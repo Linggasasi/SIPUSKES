@@ -291,7 +291,7 @@ function App() {
     let timer
     const poll = async () => {
       try {
-        const payload = await apiFetch(`/consultations?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`)
+const payload = await fetch('/api/consultations').then((response) => response.json())
         if (active) setSharedConsultations(payload.consultations)
       } catch { if (active) setRealtimeStatus('offline') }
     }
@@ -376,18 +376,19 @@ function App() {
     setStore((current) => ({ ...current, availability: { ...current.availability, [day]: { ...current.availability[day], [doctor]: !current.availability[day][doctor] } } }))
   }
   async function requestVirtualConsultation() {
-    const room = makeRoomName(profile.memberId)
+    const roomName = makeRoomName(profile.memberId)
     try {
-      const payload = await apiFetch('/consultations', {
+      await fetch('/api/consultations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patient_name: profile.name, room_code: room, status: 'WAITING' }),
+        body: JSON.stringify({ patient_name: 'Lingga', room_code: roomName }),
       })
-      setCurrentConsultation(payload.consultation); setRoom(room); setModal('video')
+      const room = roomName
+      setCurrentConsultation({ id: room, patient: 'Lingga', room, status: 'Menunggu dokter', createdAt: '' }); setRoom(room); setModal('video')
       toast('Permintaan konsultasi tersimpan dan dikirim ke dokter.')
     } catch (error) {
-      const mockConsultation = { id: 'mock-' + room, patient: profile.name, room, status: 'Menunggu dokter', createdAt: '' }
-      setCurrentConsultation(mockConsultation); setRoom(room); setModal('video')
+      const mockConsultation = { id: 'mock-' + roomName, patient: 'Lingga', room: roomName, status: 'Menunggu dokter', createdAt: '' }
+      setCurrentConsultation(mockConsultation); setRoom(roomName); setModal('video')
       toast(`Backend tidak tersedia (${error.message}). Mode demo: ruang Jitsi dibuka langsung.`)
     }
   }
