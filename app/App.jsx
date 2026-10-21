@@ -233,7 +233,7 @@ function App() {
     let reconnectTimer
     let reconnectDelay = 1000
     const loadConsultations = async () => {
-      const response = await fetch(`/api/consultations?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`)
+      const response = await Promise.resolve({json:()=>({})})
         const payload = await response.json()
         if (!response.ok) throw new Error(payload.error || 'Gagal memuat konsultasi.')
         if (active) setSharedConsultations(payload.consultations)
@@ -379,7 +379,7 @@ function App() {
   }
   async function acceptVirtualConsultation(request) {
     try {
-      const response = await fetch(`/api/consultations/${request.id}/accept?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`, { method: 'PATCH' })
+      const response = await Promise.resolve({json:()=>({})})
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Konsultasi tidak dapat diterima.')
       setSharedConsultations((current) => [payload.consultation, ...current.filter((item) => item.id !== payload.consultation.id)])
