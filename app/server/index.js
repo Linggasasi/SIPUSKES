@@ -6,7 +6,7 @@ import pg from 'pg'
 const { Pool } = pg
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL || '') ? false : { rejectUnauthorized: false },
 })
 
 const app = express()
@@ -38,6 +38,11 @@ async function ensureConsultationsTable() {
     )
   `)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_consultations_status ON consultations(status)`)
+  // Kolom tambahan (aman dijalankan berulang)
+  await pool.query(`ALTER TABLE consultations ADD COLUMN IF NOT EXISTS member_id VARCHAR`)
+  await pool.query(`ALTER TABLE consultations ADD COLUMN IF NOT EXISTS complaint TEXT`)
+  await pool.query(`ALTER TABLE consultations ADD COLUMN IF NOT EXISTS clinic VARCHAR`)
+  await pool.query(`ALTER TABLE consultations ADD COLUMN IF NOT EXISTS doctor_name VARCHAR`)
 }
 
 async function ensurePatientsTable() {
@@ -57,6 +62,10 @@ function toConsultation(row) {
     id: String(row.id),
     room: row.room_code,
     patient: row.patient_name,
+    memberId: row.member_id || '',
+    complaint: row.complaint || '',
+    clinic: row.clinic || 'Poli Umum',
+    doctor: row.doctor_name || 'dr. Aditya Pratama',
     status: row.status === 'WAITING' ? 'Menunggu dokter' : row.status === 'ACTIVE' ? 'Sedang berlangsung' : 'Selesai',
     createdAt: new Date(row.created_at).toISOString(),
   }
@@ -75,9 +84,12 @@ app.get('/api/health', async (req, res) => {
 app.get('/api/consultations', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM consultations WHERE status = $1 ORDER BY created_at DESC',
-      ['WAITING']
+      `SELECT * FROM consultations
+       WHERE status = 'WAITING'
+          OR (status = 'ACTIVE' AND created_at > NOW() - INTERVAL '3 hours')
+       ORDER BY created_at DESC`
     )
+    res.set('Cache-Control', 'no-store')
     res.json({ consultations: rows.map(toConsultation) })
   } catch (error) {
     next(error)
@@ -90,17 +102,21 @@ app.post('/api/consultations', async (req, res, next) => {
     // Toleransi camelCase maupun snake_case
     const patientName = req.body.patientName || req.body.patient_name
     const roomCode = req.body.roomCode || req.body.room_code
+    const memberId = req.body.memberId || null
+    const complaint = req.body.complaint || null
+    const clinic = req.body.clinic || null
+    const doctorName = req.body.doctorName || null
 
     if (!patientName || !roomCode) {
       return res.status(400).json({ error: 'patientName/patient_name dan roomCode/room_code wajib diisi.' })
     }
 
     const { rows } = await pool.query(
-      `INSERT INTO consultations (patient_name, room_code, status)
-       VALUES ($1, $2, 'WAITING')
+      `INSERT INTO consultations (patient_name, room_code, status, member_id, complaint, clinic, doctor_name)
+       VALUES ($1, $2, 'WAITING', $3, $4, $5, $6)
        ON CONFLICT (room_code) DO UPDATE SET status = 'WAITING'
        RETURNING *`,
-      [patientName, roomCode]
+      [patientName, roomCode, memberId, complaint, clinic, doctorName]
     )
     const consultation = toConsultation(rows[0])
     res.status(201).json({ consultation })
@@ -112,7 +128,7 @@ app.post('/api/consultations', async (req, res, next) => {
 app.patch('/api/consultations/:id/accept', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `UPDATE consultations SET status = 'ACTIVE' WHERE id = $1 AND status = 'WAITING' RETURNING *`,
+      `UPDATE consultations SET status = 'ACTIVE' WHERE id = $1 AND status IN ('WAITING', 'ACTIVE') RETURNING *`,
       [req.params.id]
     )
     if (!rows.length) return res.status(404).json({ error: 'Konsultasi tidak ditemukan atau sudah diproses.' })
@@ -149,5 +165,11 @@ app.use((error, _req, res, _next) => {
   console.error('[api]', error)
   res.status(error.status || 500).json({ error: error.message || 'Terjadi kesalahan pada layanan konsultasi.' })
 })
+
+// Jalankan server sendiri hanya saat lokal; di Vercel app diekspor sebagai serverless function.
+if (!process.env.VERCEL) {
+  const port = Number(process.env.API_PORT) || 3001
+  app.listen(port, () => console.log(`API SIPUSKES berjalan di http://localhost:${port}`))
+}
 
 export default app

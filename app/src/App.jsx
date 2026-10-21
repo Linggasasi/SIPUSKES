@@ -242,62 +242,25 @@ function App() {
   useEffect(() => {
     if (!session.loggedIn || role !== 'doctor') return undefined
     let active = true
-    let socket
-    let reconnectTimer
-    let reconnectDelay = 1000
-    const loadConsultations = async () => {
-      const payload = await apiFetch(`/consultations?email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`)
-      if (active) setSharedConsultations(payload.consultations)
-    }
-    const connect = () => {
-      if (!active) return
-      setRealtimeStatus('connecting')
-      socket = new WebSocket(`${WS_BASE}/ws?role=doctor&email=${encodeURIComponent(DEMO_DOCTOR_EMAIL)}`)
-      socket.addEventListener('open', () => {
-        if (!active) return
-        reconnectDelay = 1000
-        setRealtimeStatus('connected')
-        loadConsultations().catch(() => { if (active) setRealtimeStatus('offline') })
-      })
-      socket.addEventListener('message', (event) => {
-        if (!active) return
-        try {
-          const message = JSON.parse(event.data)
-          if (!message.consultation) return
-          setSharedConsultations((current) => [message.consultation, ...current.filter((item) => item.id !== message.consultation.id)])
-          if (message.type === 'consultation.created') toast(`Permintaan konsultasi baru dari ${message.consultation.patient}.`)
-        } catch { setRealtimeStatus('offline') }
-      })
-      socket.addEventListener('close', () => {
-        if (!active) return
-        setRealtimeStatus('offline')
-        reconnectTimer = window.setTimeout(connect, reconnectDelay)
-        reconnectDelay = Math.min(reconnectDelay * 2, 30000)
-      })
-      socket.addEventListener('error', () => socket.close())
-    }
-    connect()
-    return () => {
-      active = false
-      window.clearTimeout(reconnectTimer)
-      socket?.close()
-    }
-  }, [session.loggedIn, role])
-
-  useEffect(() => {
-    if (!session.loggedIn || role !== 'doctor' || realtimeStatus !== 'offline') return undefined
-    let active = true
-    let timer
+    let firstLoad = true
+    const known = new Set()
     const poll = async () => {
       try {
-        const payload = await fetch('/api/consultations').then((response) => response.json())
-        if (active) setSharedConsultations(payload.consultations)
+        const payload = await apiFetch('/consultations')
+        if (!active) return
+        const list = payload?.consultations || []
+        setSharedConsultations(list)
+        setRealtimeStatus('connected')
+        const fresh = list.filter((item) => item.status === 'Menunggu dokter' && !known.has(item.id))
+        list.forEach((item) => known.add(item.id))
+        if (!firstLoad && fresh.length) toast(`Permintaan konsultasi baru dari ${fresh[0].patient}.`)
+        firstLoad = false
       } catch { if (active) setRealtimeStatus('offline') }
     }
     poll()
-    timer = window.setInterval(poll, 3000)
+    const timer = window.setInterval(poll, 3000)
     return () => { active = false; window.clearInterval(timer) }
-  }, [session.loggedIn, role, realtimeStatus])
+  }, [session.loggedIn, role])
 
   const updatePatientAccount = (update, accountId = session.accountId) => {
     if (!accountId) return
@@ -395,20 +358,23 @@ function App() {
     setStore((current) => ({ ...current, availability: { ...current.availability, [day]: { ...current.availability[day], [doctor]: !current.availability[day][doctor] } } }))
   }
 
-  // --- PERBAIKAN UTAMA: BYPASS API FETCH KONSULTASI JITSI ---
-  const requestVirtualConsultation = () => {
+  const requestVirtualConsultation = async () => {
     const generatedRoom = 'SIPUSKES-Beji-' + Math.floor(100000 + Math.random() * 900000)
-    setRoom(generatedRoom)
-    setCurrentConsultation({
-      id: Date.now(),
-      patient: profile?.name || 'Lingga',
-      doctor: 'dr. Aditya Pratama',
-      clinic: 'Poli Umum',
-      room: generatedRoom,
-      status: 'Menunggu dokter'
-    })
-    setModal('video')
-    toast('Ruang Jitsi dibuka langsung.')
+    const patientName = profile?.name || 'Pasien'
+    const complaint = activeAccount?.screening?.complaint || 'Konsultasi umum'
+    const draft = { id: `local-${Date.now()}`, patient: patientName, memberId: profile?.memberId || '', doctor: 'dr. Aditya Pratama', clinic: 'Poli Umum', complaint, room: generatedRoom, status: 'Menunggu dokter' }
+    setRoom(generatedRoom); setCurrentConsultation(draft); setModal('video')
+    try {
+      const payload = await apiFetch('/consultations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patientName, roomCode: generatedRoom, memberId: draft.memberId, complaint, clinic: draft.clinic, doctorName: draft.doctor }),
+      })
+      setCurrentConsultation(payload.consultation)
+      toast('Permintaan terkirim. Menunggu dokter bergabung ke ruang yang sama.')
+    } catch (error) {
+      toast(`Ruang video terbuka, tetapi dokter belum bisa diberi tahu: ${error.message}`)
+    }
   }
 
   async function acceptVirtualConsultation(request) {
@@ -586,11 +552,11 @@ export function PharmacyPage({ toast }) {
 }
 
 function ConsultPage({ join }) {
-  return <><PageTitle eyebrow="LAYANAN JARAK JAUH" title="Konsultasi virtual" detail="Konsultasi keluhan ringan langsung dari browser Anda." /><div className="consult-hero"><div><small className="live-label"><i /> TERSEDIA HARI INI</small><h2>Temui dokter, <br />tanpa antre di klinik.</h2><p>Untuk flu, batuk, pilek, demam ringan, dan konsultasi obat. Dokter akan menentukan apakah pemeriksaan langsung diperlukan.</p><button className="button primary" onClick={() => { const roomName = "SIPUSKES-Beji-" + Math.floor(100000 + Math.random() * 900000); setRoom(roomName); setCurrentConsultation({ id: Date.now(), patient: profile?.name || "Lingga", doctor: "dr. Aditya Pratama", clinic: "Poli Umum", room: roomName, status: "Menunggu dokter" }); setModal("video"); toast("Ruang Jitsi dibuka langsung."); }}><Video size={15} /> Mulai konsultasi video</button><small className="privacy-note"><ShieldCheck size={12} /> Jitsi Meet panggilan di halaman ini</small></div><div className="consult-visual"><div className="doctor-graphic"><Stethoscope size={56} /><span><Plus size={18} /></span></div><div><i /> dr. Aditya Pratama <small>Dokter umum · Online</small></div></div></div><div className="info-grid">{[['Keluhan ringan', 'Flu, batuk, pilek, demam ringan, dan konsultasi obat rutin.', HeartPulse], ['Jam layanan', 'Senin–Jumat, 08.00–14.00 WIB sesuai jadwal dokter.', Clock3], ['Kondisi darurat?', 'Untuk sesak berat, segera ke IGD atau hubungi 119.', Siren]].map(([name, text, Icon]) => <section className="panel" key={name}><Icon size={18} /><h3>{name}</h3><p>{text}</p></section>)}</div></>
+  return <><PageTitle eyebrow="LAYANAN JARAK JAUH" title="Konsultasi virtual" detail="Konsultasi keluhan ringan langsung dari browser Anda." /><div className="consult-hero"><div><small className="live-label"><i /> TERSEDIA HARI INI</small><h2>Temui dokter, <br />tanpa antre di klinik.</h2><p>Untuk flu, batuk, pilek, demam ringan, dan konsultasi obat. Dokter akan menentukan apakah pemeriksaan langsung diperlukan.</p><button className="button primary" onClick={join}><Video size={15} /> Mulai konsultasi video</button><small className="privacy-note"><ShieldCheck size={12} /> Jitsi Meet panggilan di halaman ini</small></div><div className="consult-visual"><div className="doctor-graphic"><Stethoscope size={56} /><span><Plus size={18} /></span></div><div><i /> dr. Aditya Pratama <small>Dokter umum · Online</small></div></div></div><div className="info-grid">{[['Keluhan ringan', 'Flu, batuk, pilek, demam ringan, dan konsultasi obat rutin.', HeartPulse], ['Jam layanan', 'Senin–Jumat, 08.00–14.00 WIB sesuai jadwal dokter.', Clock3], ['Kondisi darurat?', 'Untuk sesak berat, segera ke IGD atau hubungi 119.', Siren]].map(([name, text, Icon]) => <section className="panel" key={name}><Icon size={18} /><h3>{name}</h3><p>{text}</p></section>)}</div></>
 }
 
 function ConsultationRequestRows({ requests, onAccept }) {
-  return requests.map((request) => <article className="consultation-request" key={request.id}><span className="consult-request-avatar"><UserRound size={17} /></span><div className="consult-request-copy"><div><b>{request.patient}</b><span className={`status ${request.status === 'Menunggu dokter' ? 'status-waiting' : 'status-green'}`}><i /> {request.status}</span></div><small>{request.memberId} · {request.clinic} · {request.doctor}</small><p>{request.complaint}</p><small>Permintaan {new Date(request.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</small></div><button className="button primary" onClick={() => onAccept(request)}><Video size={14} /> {request.status === 'Menunggu dokter' ? 'Terima & hubungi' : 'Gabung kembali'}</button></article>)
+  return requests.map((request) => <article className="consultation-request" key={request.id}><span className="consult-request-avatar"><UserRound size={17} /></span><div className="consult-request-copy"><div><b>{request.patient}</b><span className={`status ${request.status === 'Menunggu dokter' ? 'status-waiting' : 'status-green'}`}><i /> {request.status}</span></div><small>{[request.memberId, request.clinic, request.doctor].filter(Boolean).join(' · ')}</small>{request.complaint ? <p>{request.complaint}</p> : null}<small>Permintaan {new Date(request.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</small></div><button className="button primary" onClick={() => onAccept(request)}><Video size={14} /> {request.status === 'Menunggu dokter' ? 'Terima & hubungi' : 'Gabung kembali'}</button></article>)
 }
 
 function DoctorConsultationInbox({ consultations, realtimeStatus, onAccept, go }) {
@@ -601,8 +567,8 @@ function DoctorConsultationInbox({ consultations, realtimeStatus, onAccept, go }
 
 function DoctorConsultations({ consultations, realtimeStatus, onAccept }) {
   const waiting = consultations.filter((request) => request.status === 'Menunggu dokter').length
-  const connectionText = realtimeStatus === 'connected' ? 'WebSocket terhubung' : realtimeStatus === 'offline' ? 'WebSocket offline' : 'Menghubungkan WebSocket...'
-  return <><PageTitle eyebrow="PORTAL DOKTER KONSULTASI" title="Konsultasi Virtual" detail={`Terima panggilan video dari pasien · ${connectionText}.`} /><div className="metric-row"><div><small>Permintaan menunggu</small><b>{waiting}</b><Clock3 size={16} /></div><div><small>Sesi aktif</small><b>{consultations.length}</b><Video size={16} /></div><div><small>Platform panggilan</small><b>Jitsi Meet</b><ShieldCheck size={16} /></div></div><section className="panel doctor-consultations"><div className="panel-heading"><span><h2>Daftar permintaan pasien</h2><p>Memilih terima memperbarui status sesi pada PostgreSQL.</p></span><Video size={17} /></div>{consultations.length ? <ConsultationRequestRows requests={consultations} onAccept={onAccept} /> : <p className="empty-state">Belum ada pasien yang memulai konsultasi virtual.</p>}</section><p className="privacy-note"><ShieldCheck size={13} /> Permintaan tersimpan di PostgreSQL; room video dibagikan melalui Jitsi Meet.</p></>
+  const connectionText = realtimeStatus === 'connected' ? 'Terhubung ke server' : realtimeStatus === 'offline' ? 'Server tidak terjangkau' : 'Menghubungkan...'
+  return <><PageTitle eyebrow="PORTAL DOKTER KONSULTASI" title="Konsultasi Virtual" detail={`Terima panggilan video dari pasien · ${connectionText}.`} /><div className="metric-row"><div><small>Permintaan menunggu</small><b>{waiting}</b><Clock3 size={16} /></div><div><small>Sesi aktif</small><b>{consultations.filter((request) => request.status === 'Sedang berlangsung').length}</b><Video size={16} /></div><div><small>Platform panggilan</small><b>Jitsi Meet</b><ShieldCheck size={16} /></div></div><section className="panel doctor-consultations"><div className="panel-heading"><span><h2>Daftar permintaan pasien</h2><p>Memilih terima memperbarui status sesi pada PostgreSQL.</p></span><Video size={17} /></div>{consultations.length ? <ConsultationRequestRows requests={consultations} onAccept={onAccept} /> : <p className="empty-state">Belum ada pasien yang memulai konsultasi virtual.</p>}</section><p className="privacy-note"><ShieldCheck size={13} /> Permintaan tersimpan di PostgreSQL; room video dibagikan melalui Jitsi Meet.</p></>
 }
 
 export function FacilitiesPage() {
